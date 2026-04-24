@@ -39,6 +39,13 @@ export default function DiscordPresenceWidget({ widget, accent }) {
 
   const { discord_user, discord_status, activities, spotify, listening_to_spotify } = data;
 
+  // Lanyard occasionally ships partial payloads (e.g. user not yet fully
+  // indexed). Bail out defensively rather than crashing downstream
+  // `avatarUrl(discord_user)` / BigInt coercion.
+  if (!discord_user || !discord_user.id) {
+    return <EmptyState message="Presence unavailable — is this user in the Lanyard server?" />;
+  }
+
   // Lanyard's activity list contains games, custom status and Spotify. Pick
   // the first "rich presence" activity that isn't the custom status or
   // Spotify (type 4 and 2 respectively).
@@ -215,11 +222,16 @@ function ActivityRow({ activity, accent }) {
 /* -------------------------------------------------------------------------- */
 
 function avatarUrl(user) {
+  if (!user?.id) return 'https://cdn.discordapp.com/embed/avatars/0.png';
   if (user.avatar) {
     return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
   }
-  const idx = (BigInt(user.id) >> 22n) % 6n;
-  return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+  try {
+    const idx = (BigInt(user.id) >> 22n) % 6n;
+    return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+  } catch {
+    return 'https://cdn.discordapp.com/embed/avatars/0.png';
+  }
 }
 
 function activityImageUrl(appId, key) {
