@@ -1,6 +1,12 @@
+import { useEffect, useState } from 'react';
 import SliderInput from './controls/SliderInput.jsx';
 import TextInput from './controls/TextInput.jsx';
 import { detectMusicSource, youtubeSearchUrl, spotifySearchUrl } from '../../utils/music.js';
+import {
+  disconnectSpotify,
+  getSpotifyStatus,
+  spotifyConnectUrl,
+} from '../../utils/api.js';
 
 /**
  * Editor panel for auto-playing music.
@@ -8,11 +14,13 @@ import { detectMusicSource, youtubeSearchUrl, spotifySearchUrl } from '../../uti
  * plain-text search. We live-detect the input kind and surface either a
  * green "ready" badge or a search fallback with links out.
  */
-export default function MusicPanel({ music, onChange }) {
+export default function MusicPanel({ music, onChange, me }) {
   const source = detectMusicSource(music.src);
 
   return (
     <div className="space-y-4">
+      <SpotifyConnectSection me={me} />
+
       <ToggleRow
         title="Enable music"
         subtitle="Plays on profile load (with autoplay fallback)."
@@ -60,6 +68,85 @@ export default function MusicPanel({ music, onChange }) {
         onChange={(v) => onChange({ volume: v })}
         format={(v) => `${Math.round(v * 100)}%`}
       />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Spotify connect / disconnect                                                */
+/* -------------------------------------------------------------------------- */
+
+function SpotifyConnectSection({ me }) {
+  const [status, setStatus] = useState({ connected: false, loading: true });
+
+  useEffect(() => {
+    if (!me) {
+      setStatus({ connected: false, loading: false });
+      return;
+    }
+    let cancelled = false;
+    getSpotifyStatus().then((s) => {
+      if (!cancelled) setStatus({ ...s, loading: false });
+    });
+    // Detect ?spotify=connected flag set by the OAuth callback redirect.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('spotify')) {
+      // Clean up the URL so the flag doesn't stick around.
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [me]);
+
+  if (!me) return null;
+
+  const onDisconnect = async () => {
+    await disconnectSpotify();
+    setStatus({ connected: false, loading: false });
+  };
+
+  return (
+    <div className="rounded-xl border border-[#1db95433] bg-[#1db95410] p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#1db954">
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.59 14.42a.62.62 0 0 1-.86.21c-2.35-1.44-5.31-1.76-8.8-.97a.62.62 0 1 1-.28-1.22c3.82-.87 7.09-.5 9.73 1.12.3.18.39.57.21.86Zm1.22-2.72a.78.78 0 0 1-1.07.26c-2.69-1.66-6.78-2.13-9.96-1.16a.78.78 0 1 1-.45-1.5c3.63-1.1 8.14-.57 11.23 1.33.36.22.48.7.25 1.07Zm.1-2.83c-3.23-1.92-8.55-2.09-11.63-1.15a.94.94 0 1 1-.55-1.8c3.53-1.08 9.4-.88 13.13 1.33a.94.94 0 1 1-.95 1.62Z" />
+        </svg>
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#1db954]">
+          Live Spotify
+        </span>
+      </div>
+
+      {status.loading ? (
+        <p className="text-[11px] text-white/40">Checking…</p>
+      ) : status.connected ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-white/60">
+            Connected. Your profile will show what you're listening to in
+            real time.
+          </p>
+          <button
+            type="button"
+            onClick={onDisconnect}
+            className="rounded-md border border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70 transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-200"
+          >
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-[11px] text-white/60">
+            Connect Spotify to show your current track live on your profile —
+            album art, progress, direct link to the song.
+          </p>
+          <a
+            href={spotifyConnectUrl()}
+            className="inline-flex items-center gap-2 rounded-md bg-[#1db954] px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-black transition hover:brightness-110"
+          >
+            Connect Spotify →
+          </a>
+        </div>
+      )}
     </div>
   );
 }

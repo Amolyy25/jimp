@@ -26,9 +26,11 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import pkg from '@prisma/client';
 import { isSlugForbidden } from './forbiddenSlugs.js';
+import { renderProfileOg, invalidateOgCache } from './og.js';
+import { registerSpotifyRoutes } from './spotify.js';
 
 const { PrismaClient } = pkg;
 
@@ -227,12 +229,14 @@ app.get('/api/profiles/me', authenticate, async (req, res) => {
   }
 });
 
-// Public profile fetch — only returns the `data` blob.
+// Public profile fetch — returns the `data` blob plus the owner ID so the
+// public page can, for instance, ask for live Spotify now-playing. The
+// owner ID is not sensitive (it's the cuid), only the tokens are.
 app.get('/api/profiles/:slug', async (req, res) => {
   const { slug } = req.params;
   const profile = await prisma.profile.findUnique({ where: { slug } });
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
-  res.json(profile.data);
+  res.json({ ...profile.data, __ownerId: profile.userId });
 });
 
 // Create or update the current user's profile.
@@ -266,6 +270,7 @@ app.post('/api/profiles', authenticate, async (req, res) => {
       const profile = await prisma.profile.create({
         data: { slug: normalizedSlug, data, userId, slugChangedAt: new Date() },
       });
+      invalidateOgCache(normalizedSlug);
       return res.json({ ...profile, ...cooldownFor(profile) });
     }
 
@@ -297,6 +302,10 @@ app.post('/api/profiles', authenticate, async (req, res) => {
         ...(slugChanged ? { slugChangedAt: new Date() } : {}),
       },
     });
+    // Any saved change means the OG preview is stale — drop the cache so
+    // crawlers re-render next time they hit /:slug.
+    invalidateOgCache(normalizedSlug);
+    if (slugChanged) invalidateOgCache(existing.slug);
     res.json({ ...profile, ...cooldownFor(profile) });
   } catch (err) {
     if (err.code === 'P2002') {
@@ -306,6 +315,33 @@ app.post('/api/profiles', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Failed to save profile' });
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/* OG images                                                                   */
+/* -------------------------------------------------------------------------- */
+
+app.get('/api/og/:slug', async (req, res) => {
+  try {
+    const profile = await prisma.profile.findUnique({
+      where: { slug: req.params.slug.toLowerCase() },
+    });
+    if (!profile) return res.status(404).send('Profile not found');
+
+    const png = await renderProfileOg(req.params.slug, profile.data);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=300');
+    res.send(png);
+  } catch (err) {
+    console.error('[og] render error:', err);
+    res.status(500).send('OG render failed');
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* Spotify                                                                     */
+/* -------------------------------------------------------------------------- */
+
+registerSpotifyRoutes(app, prisma, authenticate);
 
 app.get('/api/check-slug/:slug', async (req, res) => {
   const slug = (req.params.slug || '').toLowerCase();
@@ -323,11 +359,35 @@ app.get('/api/check-slug/:slug', async (req, res) => {
 if (IS_PROD) {
   const distPath = path.resolve(__dirname, '..', 'dist');
   if (existsSync(distPath)) {
-    app.use(express.static(distPath));
-    // Any non-API GET falls through to the SPA shell — React Router handles it.
-    // We use a regex instead of "*" because Express 5's router rejects bare "*".
-    app.get(/^(?!\/api\/).*/, (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    const indexPath = path.join(distPath, 'index.html');
+    // Read the SPA shell ONCE at boot — meta-tag injection then works as
+    // a string replace per-request, which is dirt cheap.
+    const indexHtml = readFileSync(indexPath, 'utf8');
+
+    app.use(express.static(distPath, { index: false }));
+
+    // SPA fallback. For root-level one-segment paths (potentially vanity
+    // slugs) we try to look the profile up and rewrite meta tags so
+    // Discord/Twitter/iMessage show a rich preview when the link is
+    // pasted. Everything else gets the untouched shell.
+    app.get(/^(?!\/api\/|\/assets\/).*/, async (req, res) => {
+      try {
+        const match = req.path.match(/^\/([a-z0-9][a-z0-9-]{1,29})$/i);
+        if (match) {
+          const slug = match[1].toLowerCase();
+          const profile = await prisma.profile.findUnique({ where: { slug } });
+          if (profile) {
+            const html = injectProfileMeta(indexHtml, slug, profile.data, req);
+            res.set('Content-Type', 'text/html; charset=utf-8');
+            return res.send(html);
+          }
+        }
+      } catch (err) {
+        // Fall through to unmodified shell — never block the SPA on meta
+        // injection errors.
+        console.warn('[meta] injection failed:', err.message);
+      }
+      res.sendFile(indexPath);
     });
   } else {
     console.warn(
@@ -413,6 +473,67 @@ boot().catch((err) => {
  * Compute cooldown metadata for a profile. The unlock time is 7 days after
  * the last slug change; before that, slug edits are refused by the API.
  */
+/**
+ * Inject Open Graph + Twitter meta tags into the SPA shell HTML for a
+ * specific profile. Crawlers (Discord, Twitter, iMessage…) don't run JS,
+ * so the tags MUST live in the initial HTML response.
+ */
+function injectProfileMeta(html, slug, data, req) {
+  const avatar = data.widgets?.find((w) => w.type === 'avatar');
+  const username = avatar?.data?.username || slug;
+  const bio = avatar?.data?.bio || `${username} on Jimp.`;
+
+  const origin = publicOrigin(req);
+  const url = `${origin}/${slug}`;
+  const ogImage = `${origin}/api/og/${slug}`;
+
+  const tags = [
+    `<title>@${escapeHtml(username)} — Jimp</title>`,
+    `<meta name="description" content="${escapeHtml(bio)}" />`,
+    `<link rel="canonical" href="${url}" />`,
+    `<meta property="og:type" content="profile" />`,
+    `<meta property="og:site_name" content="Jimp" />`,
+    `<meta property="og:title" content="@${escapeHtml(username)}" />`,
+    `<meta property="og:description" content="${escapeHtml(bio)}" />`,
+    `<meta property="og:url" content="${url}" />`,
+    `<meta property="og:image" content="${ogImage}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="@${escapeHtml(username)} — Jimp" />`,
+    `<meta name="twitter:description" content="${escapeHtml(bio)}" />`,
+    `<meta name="twitter:image" content="${ogImage}" />`,
+    // Discord uses og:image but also respects a theme colour hint.
+    `<meta name="theme-color" content="${escapeHtml(data.theme?.accent || '#5865F2')}" />`,
+  ].join('\n    ');
+
+  // Replace the first <title> tag (and a couple of static meta tags) with
+  // our bundle. Falls back to injecting just after <head> if no <title>.
+  if (/<title>[^<]*<\/title>/.test(html)) {
+    return html
+      .replace(/<title>[^<]*<\/title>\s*/i, '')
+      .replace(/(<meta name="description"[^>]*>\s*)/i, '')
+      .replace(/<head>/i, `<head>\n    ${tags}`);
+  }
+  return html.replace(/<head>/i, `<head>\n    ${tags}`);
+}
+
+/** Best-effort request → "https://host" origin — honours X-Forwarded-* on Railway. */
+function publicOrigin(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  return `${proto}://${host}`;
+}
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function cooldownFor(profile) {
   const unlocksAt = new Date(
     new Date(profile.slugChangedAt).getTime() + SLUG_COOLDOWN_MS,

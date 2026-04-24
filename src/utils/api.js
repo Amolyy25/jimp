@@ -104,4 +104,38 @@ export async function saveProfile(slug, profileData) {
   }
 }
 
+/* -------- Spotify -------- */
+
+export async function getSpotifyStatus() {
+  try {
+    const { data } = await api.get('/spotify/status');
+    return data;
+  } catch {
+    return { connected: false };
+  }
+}
+
+/** Returns the absolute URL to kick off Spotify OAuth. */
+export function spotifyConnectUrl() {
+  // Axios baseURL is relative (/api) in dev+prod — reconstruct an absolute
+  // URL so the browser can actually navigate.
+  const base = api.defaults.baseURL.startsWith('http')
+    ? api.defaults.baseURL
+    : window.location.origin + api.defaults.baseURL;
+  return `${base}/spotify/connect`;
+}
+
+export async function disconnectSpotify() {
+  await api.post('/spotify/disconnect');
+}
+
+export async function getSpotifyNowPlaying(userId) {
+  try {
+    const { data } = await api.get(`/spotify/now-playing/${userId}`);
+    return data;
+  } catch {
+    return { is_playing: false };
+  }
+}
+
 export default api;

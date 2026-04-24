@@ -3,6 +3,9 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import BackgroundLayer from '../components/BackgroundLayer.jsx';
 import MusicPlayer from '../components/MusicPlayer.jsx';
+import SplashScreen from '../components/SplashScreen.jsx';
+import ParticlesLayer from '../components/ParticlesLayer.jsx';
+import CursorTrail from '../components/CursorTrail.jsx';
 import { decodeProfile } from '../utils/encode.js';
 import { WIDGET_REGISTRY } from '../components/widgets/index.js';
 import WidgetFrame from '../components/widgets/WidgetFrame.jsx';
@@ -24,13 +27,25 @@ export default function View() {
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(!!slug);
+  // Splash gate — resolves to `true` (entered) once user clicks or when the
+  // profile doesn't opt into a splash. The MusicPlayer only starts playback
+  // after this gate is down, which also solves the autoplay policy.
+  const [entered, setEntered] = useState(false);
 
-  // 1. Handle Slug (Database)
+  // 1. Handle Slug (Database). The payload carries `__ownerId` alongside
+  // the profile blob — we strip it into its own state so widgets that need
+  // the owner ID (e.g. Spotify now-playing) can request it without it
+  // leaking into the editor's persisted profile state.
+  const [ownerId, setOwnerId] = useState(null);
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
-    getProfileBySlug(slug).then((data) => {
-      if (data) setProfile(data);
+    getProfileBySlug(slug).then((payload) => {
+      if (payload) {
+        const { __ownerId, ...data } = payload;
+        setProfile(data);
+        setOwnerId(__ownerId || null);
+      }
       setLoading(false);
     });
   }, [slug]);
@@ -77,19 +92,41 @@ export default function View() {
     return <EmptyState />;
   }
 
+  const splashEnabled = !!profile.theme?.splash?.enabled;
+  const showSplash = splashEnabled && !entered;
+
+  // When music autoplay is desired, we delay the player's autoplay until the
+  // splash is dismissed (giving the browser a real user gesture).
+  const music = {
+    ...(profile.music || { enabled: false }),
+    autoplay: (profile.music?.autoplay ?? false) && (!splashEnabled || entered),
+  };
+
   return (
-    <MusicPlayer music={profile.music || { enabled: false }} accent={profile.theme?.accent}>
-      <ProfileBody profile={profile} isMobile={isMobile} />
-    </MusicPlayer>
+    <>
+      {showSplash && (
+        <SplashScreen
+          text={profile.theme.splash.text || 'Click to enter'}
+          subtitle={profile.theme.splash.subtitle}
+          accent={profile.theme?.accent}
+          onDismiss={() => setEntered(true)}
+        />
+      )}
+      <MusicPlayer music={music} accent={profile.theme?.accent}>
+        <ProfileBody profile={profile} isMobile={isMobile} ownerId={ownerId} />
+      </MusicPlayer>
+    </>
   );
 }
 
 /** The body is its own component so it can consume MusicContext via hooks. */
-function ProfileBody({ profile, isMobile }) {
+function ProfileBody({ profile, isMobile, ownerId }) {
   const { playing } = useMusic();
   const visibleWidgets = profile.widgets.filter((w) => w.visible !== false);
   const entryAnim = profile.theme?.entryAnimation || 'none';
   const animClass = entryAnim !== 'none' ? `animate-entry-${entryAnim}` : '';
+
+  const accent = profile.theme?.accent || '#5865F2';
 
   return (
     <div
@@ -97,6 +134,14 @@ function ProfileBody({ profile, isMobile }) {
       style={{ background: profile.theme?.pageBg || '#0a0a0a' }}
     >
       <BackgroundLayer background={profile.background} />
+
+      {/* Ambient effects — disabled on mobile to keep the feed light */}
+      {!isMobile && (
+        <>
+          <ParticlesLayer variant={profile.theme?.particles} accent={accent} />
+          <CursorTrail variant={profile.theme?.cursorTrail} accent={accent} />
+        </>
+      )}
 
       {isMobile ? (
         <div className="relative z-10 mx-auto flex max-w-md flex-col gap-5 px-5 py-8 pb-28">
@@ -108,7 +153,7 @@ function ProfileBody({ profile, isMobile }) {
               isMobile
               index={i}
             >
-              {renderWidget(widget, { musicPlaying: playing, accent: profile.theme?.accent })}
+              {renderWidget(widget, { musicPlaying: playing, accent: profile.theme?.accent, ownerId })}
             </WidgetFrame>
           ))}
         </div>
@@ -163,6 +208,7 @@ function ProfileBody({ profile, isMobile }) {
                         widget={w}
                         musicPlaying={playing}
                         accent={profile.theme?.accent}
+                        ownerId={ownerId}
                       />
                     </WidgetFrame>
                   </motion.div>

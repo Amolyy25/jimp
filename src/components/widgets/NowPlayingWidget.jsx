@@ -1,46 +1,81 @@
 import { useMusic } from '../../utils/MusicContext.jsx';
+import { useSpotifyNowPlaying } from '../../hooks/useSpotifyNowPlaying.js';
 
 /**
- * "Now playing" widget. The bars animate while music is actually playing.
- * When `syncFromPlayer` is on, the title/artist are pulled from the
- * MusicContext (useful for the View page where the player knows the track).
- * Otherwise we fall back to the values typed in the editor.
+ * "Now playing" widget.
+ *
+ * Source priority:
+ *   1. If the profile owner linked Spotify *and* something is playing → show
+ *      the live Spotify track with album art.
+ *   2. Else if the MusicContext reports an active track (audio/YouTube) →
+ *      show the MusicPlayer metadata.
+ *   3. Else fall back to the track/artist typed into the editor.
+ *
+ * The widget receives `ownerId` through the View.jsx render context so it
+ * can poll the public Spotify endpoint.
  */
-export default function NowPlayingWidget({ widget, musicPlaying, accent }) {
+export default function NowPlayingWidget({ widget, musicPlaying, accent, ownerId }) {
   const { meta, playing } = useMusic();
   const { trackTitle, artist, syncFromPlayer } = widget.data;
   const bar = accent || '#5865F2';
 
-  // The two "playing" signals — prop and context — should agree in practice.
-  const isPlaying = musicPlaying || playing;
+  const spotify = useSpotifyNowPlaying(ownerId || null);
+  const spotifyPlaying = spotify.state === 'playing';
 
-  const displayTitle = syncFromPlayer && meta.title ? meta.title : trackTitle || 'Untitled';
-  const displayArtist = syncFromPlayer && meta.artist ? meta.artist : artist || 'Unknown artist';
+  const isPlaying = spotifyPlaying || musicPlaying || playing;
+
+  let displayTitle;
+  let displayArtist;
+  let albumArt = null;
+
+  if (spotifyPlaying && spotify.data) {
+    displayTitle = spotify.data.track;
+    displayArtist = spotify.data.artist;
+    albumArt = spotify.data.albumArt;
+  } else if (syncFromPlayer && meta.title) {
+    displayTitle = meta.title;
+    displayArtist = meta.artist;
+  } else {
+    displayTitle = trackTitle || 'Untitled';
+    displayArtist = artist || 'Unknown artist';
+  }
 
   return (
     <div className="flex h-full w-full items-center gap-3 px-4">
-      <div className="flex items-end gap-0.5">
-        {[0, 1, 2, 3].map((i) => (
-          <span
-            key={i}
-            className="block w-1 rounded-full"
-            style={{
-              height: '18px',
-              background: bar,
-              opacity: isPlaying ? 0.9 : 0.3,
-              transform: isPlaying ? undefined : 'scaleY(0.45)',
-              animation: isPlaying
-                ? `eq-${i} 900ms ${i * 110}ms ease-in-out infinite alternate`
-                : 'none',
-              transformOrigin: 'bottom',
-            }}
-          />
-        ))}
-      </div>
+      {albumArt ? (
+        <img
+          src={albumArt}
+          alt={displayTitle}
+          className="h-12 w-12 flex-shrink-0 rounded-md object-cover"
+        />
+      ) : (
+        <div className="flex items-end gap-0.5">
+          {[0, 1, 2, 3].map((i) => (
+            <span
+              key={i}
+              className="block w-1 rounded-full"
+              style={{
+                height: '18px',
+                background: bar,
+                opacity: isPlaying ? 0.9 : 0.3,
+                transform: isPlaying ? undefined : 'scaleY(0.45)',
+                animation: isPlaying
+                  ? `eq-${i} 900ms ${i * 110}ms ease-in-out infinite alternate`
+                  : 'none',
+                transformOrigin: 'bottom',
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="min-w-0 flex-1">
         <div className="eyebrow" style={{ color: 'currentColor' }}>
-          {isPlaying ? 'Now playing' : 'Paused'}
+          {spotifyPlaying
+            ? 'Spotify · live'
+            : isPlaying
+              ? 'Now playing'
+              : 'Paused'}
         </div>
         <div
           className="truncate text-sm font-semibold tracking-tight"
@@ -56,10 +91,6 @@ export default function NowPlayingWidget({ widget, musicPlaying, accent }) {
         </div>
       </div>
 
-      {/*
-        Inline keyframes for the equaliser bars.
-        Scoped names so they don't clash with other animations.
-      */}
       <style>{`
         @keyframes eq-0 { from { transform: scaleY(0.4);} to { transform: scaleY(1);} }
         @keyframes eq-1 { from { transform: scaleY(0.75);} to { transform: scaleY(0.3);} }

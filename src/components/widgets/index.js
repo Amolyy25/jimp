@@ -14,6 +14,7 @@ import WeatherWidget from './WeatherWidget.jsx';
 import NowPlayingWidget from './NowPlayingWidget.jsx';
 import MusicProgressWidget from './MusicProgressWidget.jsx';
 import VisitorCounterWidget from './VisitorCounterWidget.jsx';
+import DiscordPresenceWidget from './DiscordPresenceWidget.jsx';
 
 export const WIDGET_REGISTRY = {
   avatar: { component: AvatarWidget, label: 'Avatar & identité' },
@@ -26,4 +27,5 @@ export const WIDGET_REGISTRY = {
   nowPlaying: { component: NowPlayingWidget, label: 'Now Playing' },
   musicProgress: { component: MusicProgressWidget, label: 'Progression musique' },
   visitorCounter: { component: VisitorCounterWidget, label: 'Compteur visiteurs' },
+  discordPresence: { component: DiscordPresenceWidget, label: 'Discord Presence' },
 };

@@ -30,6 +30,8 @@ export default function WidgetPanel({ widget, onUpdate }) {
       return <MusicProgressForm data={widget.data} onUpdate={onUpdate} />;
     case 'visitorCounter':
       return <VisitorCounterForm data={widget.data} onUpdate={onUpdate} />;
+    case 'discordPresence':
+      return <DiscordPresenceForm data={widget.data} onUpdate={onUpdate} />;
     default:
       return (
         <p className="text-xs text-white/40">No editor for this widget yet.</p>
@@ -519,6 +521,54 @@ function MusicProgressForm({ data, onUpdate }) {
 }
 
 /* -------------------------------------------------------------------------- */
+
+function DiscordPresenceForm({ data, onUpdate }) {
+  const validId = !data.userId || /^\d{15,22}$/.test(data.userId);
+  return (
+    <div className="space-y-3">
+      <TextInput
+        label="Discord user ID"
+        value={data.userId}
+        onChange={(v) => onUpdate({ userId: v.replace(/\D/g, '') })}
+        placeholder="e.g. 123456789012345678"
+      />
+      {!validId && (
+        <p className="text-[10px] font-medium text-red-400/90">
+          A Discord user ID is 17–20 digits. In Discord: User Settings →
+          Advanced → Developer Mode → right-click your name → Copy User ID.
+        </p>
+      )}
+      <ToggleRow
+        title="Show current game"
+        subtitle="Rich presence from the app you're playing."
+        checked={!!data.showActivity}
+        onChange={(v) => onUpdate({ showActivity: v })}
+      />
+      <ToggleRow
+        title="Show Spotify"
+        subtitle="Track + album art + progress bar when playing."
+        checked={!!data.showSpotify}
+        onChange={(v) => onUpdate({ showSpotify: v })}
+      />
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-[11px] leading-relaxed text-white/50">
+        <p className="mb-1.5 font-semibold text-white/70">One-time setup</p>
+        <p>
+          Join the{' '}
+          <a
+            href="https://discord.gg/lanyard"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-discord transition hover:underline"
+          >
+            Lanyard Discord server
+          </a>
+          {' '}so your presence is broadcast. Powered by lanyard.rest — a free
+          public service, no setup beyond that.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function VisitorCounterForm({ data, onUpdate }) {
   return (

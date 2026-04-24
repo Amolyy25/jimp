@@ -155,6 +155,20 @@ export const WIDGET_CATALOG = {
     style: { ...baseStyle(), bgOpacity: 0.04 },
     data: { storageKey: 'default' },
   },
+  discordPresence: {
+    type: 'discordPresence',
+    label: 'Discord Presence (Lanyard)',
+    defaultPos: { x: 48, y: 4 },
+    defaultSize: { w: 18, h: 9 },
+    style: { ...baseStyle(), bgOpacity: 0.06 },
+    data: {
+      // Must be a snowflake (Discord user ID). The user also has to join the
+      // Lanyard Discord server for their presence to be broadcast.
+      userId: '',
+      showActivity: true,
+      showSpotify: true,
+    },
+  },
 };
 
 export const WIDGET_TYPES = Object.keys(WIDGET_CATALOG);
@@ -182,6 +196,13 @@ export function makeDefaultProfile() {
       pageBg: '#0a0a0a',
       cursor: 'default',      // 'default' | 'pointer' | 'crosshair' | 'none' | 'custom'
       cursorUrl: '',          // when cursor === 'custom'
+      cursorTrail: 'none',    // 'none' | 'glow' | 'stars' | 'neon'
+      particles: 'none',      // 'none' | 'snow' | 'stars' | 'dust' | 'confetti'
+      splash: {
+        enabled: false,
+        text: 'Click to enter',
+        subtitle: '',
+      },
     },
     background: {
       type: 'none',

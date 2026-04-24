@@ -16,6 +16,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.99",
     "@prisma/client": "^6.0.0",
     "@supabase/supabase-js": "^2.104.1",
     "axios": "^1.15.2",

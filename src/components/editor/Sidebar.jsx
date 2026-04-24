@@ -121,7 +121,7 @@ function GlobalView({
           />
         )}
         {section === 'music' && (
-          <MusicPanel music={profile.music} onChange={onUpdateMusic} />
+          <MusicPanel music={profile.music} onChange={onUpdateMusic} me={me} />
         )}
         {section === 'theme' && (
           <ThemeSection theme={profile.theme} onChange={onUpdateTheme} />
@@ -217,6 +217,69 @@ function ThemeSection({ theme, onChange }) {
           </p>
         </>
       )}
+
+      <div className="border-t border-white/5" />
+
+      <TextInput
+        label="Cursor trail"
+        value={theme?.cursorTrail || 'none'}
+        onChange={(v) => onChange({ cursorTrail: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'glow', label: 'Glow (accent)' },
+          { value: 'stars', label: 'Stars (sparkle)' },
+          { value: 'neon', label: 'Neon (laser line)' },
+        ]}
+      />
+
+      <TextInput
+        label="Particles"
+        value={theme?.particles || 'none'}
+        onChange={(v) => onChange({ particles: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'snow', label: 'Snow' },
+          { value: 'stars', label: 'Stars' },
+          { value: 'dust', label: 'Dust (accent)' },
+          { value: 'confetti', label: 'Confetti' },
+        ]}
+      />
+      <p className="text-[11px] leading-relaxed text-white/40">
+        Ambient effects only run on desktop viewers and respect{' '}
+        <code>prefers-reduced-motion</code>.
+      </p>
+
+      <div className="border-t border-white/5" />
+
+      <h3 className="eyebrow">Splash / Enter screen</h3>
+      <ToggleRow
+        title="Enable splash gate"
+        subtitle="Show a click-to-enter screen before revealing the profile. Also unlocks music autoplay."
+        checked={!!theme?.splash?.enabled}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), enabled: v } })
+        }
+      />
+      <TextInput
+        label="Splash text"
+        value={theme?.splash?.text || ''}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), text: v } })
+        }
+        placeholder="Click to enter"
+        maxLength={40}
+        filter
+      />
+      <TextInput
+        label="Splash subtitle (optional)"
+        value={theme?.splash?.subtitle || ''}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), subtitle: v } })
+        }
+        placeholder="A tiny tagline, if you like"
+        maxLength={80}
+        filter
+      />
     </div>
   );
 }
@@ -228,6 +291,42 @@ function fileToDataURL(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/* -------- toggle atoms (scoped to this file) -------- */
+
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={[
+        'relative h-6 w-10 rounded-full border transition',
+        checked ? 'border-discord bg-discord' : 'border-white/10 bg-white/10',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
+          checked ? 'translate-x-5' : 'translate-x-0.5',
+        ].join(' ')}
+      />
+    </button>
+  );
+}
+
+function ToggleRow({ title, subtitle, checked, onChange }) {
+  return (
+    <label className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
+      <div>
+        <div className="text-xs font-semibold">{title}</div>
+        {subtitle && <div className="text-[11px] text-white/40">{subtitle}</div>}
+      </div>
+      <Toggle checked={checked} onChange={onChange} />
+    </label>
+  );
 }
 
 /* -------- widget list -------- */
