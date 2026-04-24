@@ -1,0 +1,34 @@
+// Jimp Builder — Prisma schema.
+// Each user owns exactly one Profile; the profile's slug is the vanity URL.
+// `slugChangedAt` gates the 7-day slug cooldown in the API layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  profile   Profile?
+}
+
+model Profile {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  data          Json
+  userId        String?  @unique
+  user          User?    @relation(fields: [userId], references: [id])
+  slugChangedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([slug])
+}

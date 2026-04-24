@@ -1,0 +1,20 @@
+# Railway / Nixpacks build instructions.
+# We do: install → vite build → prisma migrate deploy → start server.
+#
+# `postinstall` in package.json already runs `prisma generate` on npm install,
+# so the Prisma client is generated before `vite build` reads the schema.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "openssl"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+  "npm run build",
+  "npx prisma migrate deploy"
+]
+
+[start]
+cmd = "npm run start"

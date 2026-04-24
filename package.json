@@ -1,0 +1,50 @@
+{
+  "name": "jimp-builder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev:client": "vite",
+    "dev:server": "NODE_ENV=development node server/index.js",
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "NODE_ENV=production node server/index.js",
+    "postinstall": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "@supabase/supabase-js": "^2.104.1",
+    "axios": "^1.15.2",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "express-validator": "^7.3.2",
+    "framer-motion": "^12.38.0",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^1.9.0",
+    "pg": "^8.20.0",
+    "prisma": "^6.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "vite": "^5.4.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
