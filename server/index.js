@@ -184,12 +184,26 @@ app.post('/api/auth/login', async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ error: 'Missing credentials' });
   }
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    issueSession(res, user);
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    // Typical suspects: Prisma schema drift (missing column), DB unreachable,
+    // DB migrations not applied. We log the full error but keep the response
+    // opaque to clients.
+    console.error('[login] Prisma/DB error:', err.code, err.message);
+    if (err.code === 'P2021' || err.code === 'P2022') {
+      return res.status(500).json({
+        error: 'Database schema is out of sync. Run `prisma migrate deploy`.',
+        code: err.code,
+      });
+    }
+    res.status(500).json({ error: 'Login failed' });
   }
-  issueSession(res, user);
-  res.json({ user: publicUser(user) });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -198,9 +212,20 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/auth/me', authenticate, async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: publicUser(user) });
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error('[me] Prisma/DB error:', err.code, err.message);
+    if (err.code === 'P2021' || err.code === 'P2022') {
+      return res.status(500).json({
+        error: 'Database schema is out of sync.',
+        code: err.code,
+      });
+    }
+    res.status(500).json({ error: 'Failed to load session' });
+  }
 });
 
 /* -------------------------------------------------------------------------- */

@@ -22,6 +22,11 @@ const baseStyle = () => ({
   borderWidth: 1,
   borderRadius: 18,
   textColor: '#ffffff',
+  // When true, the widget hugs its content — its `pos` becomes the *centre*
+  // of the box (via translate(-50%, -50%)) and `size` acts as a max bound.
+  // Adding items grows the box symmetrically, so the visual centre stays
+  // pinned wherever the user dropped it.
+  autoSize: false,
 });
 
 export const WIDGET_CATALOG = {
@@ -42,9 +47,9 @@ export const WIDGET_CATALOG = {
   badges: {
     type: 'badges',
     label: 'Badges',
-    defaultPos: { x: 8, y: 48 },
-    defaultSize: { w: 36, h: 10 },
-    style: { ...baseStyle(), bgOpacity: 0.04 },
+    defaultPos: { x: 26, y: 53 },
+    defaultSize: { w: 50, h: 14 },
+    style: { ...baseStyle(), bgOpacity: 0.04, autoSize: true },
     data: {
       badges: [
         { emoji: '✨', label: 'Founder' },
@@ -55,9 +60,9 @@ export const WIDGET_CATALOG = {
   socials: {
     type: 'socials',
     label: 'Réseaux sociaux',
-    defaultPos: { x: 8, y: 62 },
-    defaultSize: { w: 36, h: 10 },
-    style: { ...baseStyle(), bgOpacity: 0 },
+    defaultPos: { x: 26, y: 67 },
+    defaultSize: { w: 50, h: 14 },
+    style: { ...baseStyle(), bgOpacity: 0, autoSize: true },
     data: {
       links: {
         discord: 'yourname#0001',
@@ -70,9 +75,9 @@ export const WIDGET_CATALOG = {
   discordServers: {
     type: 'discordServers',
     label: 'Serveurs Discord',
-    defaultPos: { x: 48, y: 14 },
-    defaultSize: { w: 44, h: 34 },
-    style: { ...baseStyle(), bgOpacity: 0.04 },
+    defaultPos: { x: 70, y: 30 },
+    defaultSize: { w: 50, h: 60 },
+    style: { ...baseStyle(), bgOpacity: 0.04, autoSize: true },
     data: {
       servers: [
         {
@@ -88,9 +93,9 @@ export const WIDGET_CATALOG = {
   games: {
     type: 'games',
     label: 'Jeux favoris',
-    defaultPos: { x: 48, y: 50 },
-    defaultSize: { w: 44, h: 36 },
-    style: { ...baseStyle(), bgOpacity: 0.04 },
+    defaultPos: { x: 70, y: 70 },
+    defaultSize: { w: 60, h: 60 },
+    style: { ...baseStyle(), bgOpacity: 0.04, autoSize: true },
     data: {
       games: [
         {

@@ -14,7 +14,7 @@ export default function BadgesWidget({ widget }) {
   }
 
   return (
-    <div className="flex h-full w-full flex-wrap content-center items-center gap-2 px-4 py-3">
+    <div className="flex h-full w-full flex-wrap content-center items-center justify-center gap-2 px-4 py-3">
       {badges.map((b, i) => (
         <span
           key={i}

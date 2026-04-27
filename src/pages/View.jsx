@@ -189,29 +189,47 @@ function ProfileBody({ profile, isMobile, ownerId }) {
                   bounce: animation === 'bounce' ? 0.4 : 0,
                 };
 
-                return (
-                  <motion.div
-                    key={w.id}
-                    className="absolute"
-                    style={{
+                // Mirror the editor: when a widget opts into autoSize, pos
+                // becomes the widget's centre and size becomes a max bound,
+                // so adding items grows the box symmetrically around the
+                // anchor instead of overflowing.
+                const auto = !!w.style?.autoSize;
+                const layoutStyle = auto
+                  ? {
+                      left: `${w.pos.x}%`,
+                      top: `${w.pos.y}%`,
+                      // CSS centring lives on the OUTER div so framer-motion
+                      // (which manages `transform` internally on the inner
+                      // motion.div) doesn't strip it during the animation.
+                      transform: 'translate(-50%, -50%)',
+                      maxWidth: `${w.size.w}%`,
+                      maxHeight: `${w.size.h}%`,
+                    }
+                  : {
                       left: `${w.pos.x}%`,
                       top: `${w.pos.y}%`,
                       width: `${w.size.w}%`,
                       height: `${w.size.h}%`,
-                    }}
-                    initial={variants[animation] || variants['fade-up']}
-                    animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
-                    transition={transition}
-                  >
-                    <WidgetFrame widget={w} mode="view">
-                      <Comp
-                        widget={w}
-                        musicPlaying={playing}
-                        accent={profile.theme?.accent}
-                        ownerId={ownerId}
-                      />
-                    </WidgetFrame>
-                  </motion.div>
+                    };
+
+                return (
+                  <div key={w.id} className="absolute" style={layoutStyle}>
+                    <motion.div
+                      className={auto ? '' : 'h-full w-full'}
+                      initial={variants[animation] || variants['fade-up']}
+                      animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+                      transition={transition}
+                    >
+                      <WidgetFrame widget={w} mode="view">
+                        <Comp
+                          widget={w}
+                          musicPlaying={playing}
+                          accent={profile.theme?.accent}
+                          ownerId={ownerId}
+                        />
+                      </WidgetFrame>
+                    </motion.div>
+                  </div>
                 );
               })}
           </div>

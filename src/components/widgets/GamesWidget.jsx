@@ -22,7 +22,9 @@ export default function GamesWidget({ widget }) {
 
   return (
     <Shell>
-      <div className="grid h-full grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2.5 overflow-y-auto thin-scroll px-4 pb-4">
+      {/* `auto-fit` so empty columns collapse and the grid stays centred
+          when there's just one or two cards. */}
+      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(100px,140px))] gap-2.5 overflow-y-auto thin-scroll px-4 pb-4 justify-center justify-items-center">
         {games.map((game) => (
           <GameCard key={game.id} game={game} />
         ))}

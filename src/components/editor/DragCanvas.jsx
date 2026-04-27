@@ -58,13 +58,22 @@ export default function DragCanvas({
       const dyPct = ((e.clientY - s.startY) / rect.height) * 100;
 
       if (s.mode === 'move') {
-        const rawX = clamp(s.origin.x + dxPct, 0, 100 - s.widget.size.w);
-        const rawY = clamp(s.origin.y + dyPct, 0, 100 - s.widget.size.h);
+        const auto = !!s.widget.style?.autoSize;
+        // autoSize: pos is the widget's centre; clamp to the full grid so
+        // the user can park the centre anywhere within bounds. Fixed size:
+        // pos is top-left, so the right/bottom edge must stay on-grid.
+        const rawX = auto
+          ? clamp(s.origin.x + dxPct, 0, 100)
+          : clamp(s.origin.x + dxPct, 0, 100 - s.widget.size.w);
+        const rawY = auto
+          ? clamp(s.origin.y + dyPct, 0, 100)
+          : clamp(s.origin.y + dyPct, 0, 100 - s.widget.size.h);
         const { x, y, activeGuides } = snapPosition(
           rawX,
           rawY,
           s.widget,
           profile.widgets,
+          auto,
         );
         onWidgetMove(s.widget.id, { x: round2(x), y: round2(y) });
         setGuides(activeGuides);
@@ -144,14 +153,22 @@ export default function DragCanvas({
         >
           {visibleWidgets.map((widget, i) => {
             const isSelected = widget.id === selectedId;
-            return (
-              <div
-                key={widget.id}
-                className={[
-                  'group absolute select-none transition-shadow',
-                  isSelected ? 'z-30' : 'z-20',
-                ].join(' ')}
-                style={{
+            const auto = !!widget.style?.autoSize;
+            // When autoSize is on, `pos` is the centre of the widget and
+            // size becomes a max bound — the box hugs its content.
+            const wrapperStyle = auto
+              ? {
+                  left: `${widget.pos.x}%`,
+                  top: `${widget.pos.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  maxWidth: `${widget.size.w}%`,
+                  maxHeight: `${widget.size.h}%`,
+                  boxShadow: isSelected
+                    ? '0 0 0 1.5px rgba(88,101,242,0.9), 0 0 30px rgba(88,101,242,0.25)'
+                    : undefined,
+                  borderRadius: `${widget.style?.borderRadius ?? 16}px`,
+                }
+              : {
                   left: `${widget.pos.x}%`,
                   top: `${widget.pos.y}%`,
                   width: `${widget.size.w}%`,
@@ -160,7 +177,16 @@ export default function DragCanvas({
                     ? '0 0 0 1.5px rgba(88,101,242,0.9), 0 0 30px rgba(88,101,242,0.25)'
                     : undefined,
                   borderRadius: `${widget.style?.borderRadius ?? 16}px`,
-                }}
+                };
+
+            return (
+              <div
+                key={widget.id}
+                className={[
+                  'group absolute select-none transition-shadow',
+                  isSelected ? 'z-30' : 'z-20',
+                ].join(' ')}
+                style={wrapperStyle}
                 onPointerDown={(e) => startDrag(e, widget, 'move')}
               >
                 {(widget.style?.bgOpacity ?? 0) < 0.03 && !isSelected && (
@@ -176,10 +202,16 @@ export default function DragCanvas({
                 {isSelected && (
                   <div className="pointer-events-none absolute -top-7 left-0 flex items-center gap-1.5 rounded-md bg-discord px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-md">
                     <DragDots /> {widget.type}
+                    {auto && (
+                      <span className="opacity-70">· auto</span>
+                    )}
                   </div>
                 )}
 
-                {isSelected && (
+                {/* Resize handle — only meaningful when the widget has a
+                    fixed size. In autoSize mode the box hugs its content
+                    so we hide the handle entirely. */}
+                {isSelected && !auto && (
                   <span
                     onPointerDown={(e) => startDrag(e, widget, 'resize')}
                     className="absolute -bottom-1.5 -right-1.5 z-40 flex h-5 w-5 cursor-nwse-resize items-center justify-center rounded-full border-2 border-ink-950 bg-discord"
@@ -208,23 +240,30 @@ export default function DragCanvas({
 /* Alignment & snapping                                                       */
 /* -------------------------------------------------------------------------- */
 
-function snapPosition(x, y, widget, allWidgets) {
+function snapPosition(x, y, widget, allWidgets, autoSize) {
   const { w, h } = widget.size;
   const activeGuides = [];
 
   const xAnchors = collectAnchors('x', widget, allWidgets);
   const yAnchors = collectAnchors('y', widget, allWidgets);
 
-  const curX = [
-    { value: x, kind: 'left' },
-    { value: x + w / 2, kind: 'centre' },
-    { value: x + w, kind: 'right' },
-  ];
-  const curY = [
-    { value: y, kind: 'top' },
-    { value: y + h / 2, kind: 'centre' },
-    { value: y + h, kind: 'bottom' },
-  ];
+  // For autoSize widgets, `pos` is already the centre — only the centre
+  // is a meaningful snap target. For fixed-size widgets, edges + centre
+  // give richer alignment (left-aligned columns, etc.).
+  const curX = autoSize
+    ? [{ value: x, kind: 'centre' }]
+    : [
+        { value: x, kind: 'left' },
+        { value: x + w / 2, kind: 'centre' },
+        { value: x + w, kind: 'right' },
+      ];
+  const curY = autoSize
+    ? [{ value: y, kind: 'centre' }]
+    : [
+        { value: y, kind: 'top' },
+        { value: y + h / 2, kind: 'centre' },
+        { value: y + h, kind: 'bottom' },
+      ];
 
   let snappedX = x;
   let bestDx = SNAP_THRESHOLD;

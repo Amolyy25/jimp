@@ -19,7 +19,11 @@ export default function DiscordServersWidget({ widget, accent }) {
 
   return (
     <WidgetShell>
-      <div className="grid h-full w-full grid-cols-[repeat(auto-fill,minmax(140px,1fr))] auto-rows-min gap-2.5 overflow-y-auto thin-scroll px-4 pb-4">
+      {/* `auto-fit` (not auto-fill) collapses empty tracks so a single card
+          stays centred instead of pinning to the left. `justify-items-center`
+          centres each card within its track when content is narrower than
+          the column. */}
+      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(140px,1fr))] auto-rows-min gap-2.5 overflow-y-auto thin-scroll px-4 pb-4 justify-items-center">
         {servers.map((server) => (
           <ServerCard key={server.id} server={server} accent={accentColor} />
         ))}

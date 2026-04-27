@@ -35,7 +35,7 @@ export default function SocialsWidget({ widget, accent }) {
   };
 
   return (
-    <div className="flex h-full w-full flex-wrap content-center items-center gap-3 px-4 py-2">
+    <div className="flex h-full w-full flex-wrap content-center items-center justify-center gap-3 px-4 py-2">
       {entries.map((s) => {
         const handle = links[s.id];
         const action = actions[s.id] || (s.copy ? 'copy' : 'link');

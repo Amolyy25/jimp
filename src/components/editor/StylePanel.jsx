@@ -78,6 +78,43 @@ export default function StylePanel({ style, onUpdate }) {
         />
       </section>
 
+      <div className="border-t border-white/5" />
+
+      <section className="space-y-3">
+        <SectionTitle>Layout</SectionTitle>
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
+          <div>
+            <div className="text-xs font-semibold">Auto-size to content</div>
+            <div className="text-[11px] leading-relaxed text-white/40">
+              Widget hugs its content — adding items grows it symmetrically
+              around its anchor. Position acts as the centre, size as a max
+              bound.
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!style.autoSize}
+            onClick={() => onUpdate({ autoSize: !style.autoSize })}
+            className={[
+              'relative h-6 w-10 flex-shrink-0 rounded-full border transition',
+              style.autoSize
+                ? 'border-discord bg-discord'
+                : 'border-white/10 bg-white/10',
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
+                style.autoSize ? 'translate-x-5' : 'translate-x-0.5',
+              ].join(' ')}
+            />
+          </button>
+        </label>
+      </section>
+
+      <div className="border-t border-white/5" />
+
       <section className="space-y-3">
         <SectionTitle>Typography & Animation</SectionTitle>
         <TextInput
