@@ -33,6 +33,7 @@ export default function View() {
   // profile doesn't opt into a splash. The MusicPlayer only starts playback
   // after this gate is down, which also solves the autoplay policy.
   const [entered, setEntered] = useState(false);
+  const [splashGone, setSplashGone] = useState(false);
 
   // 1. Handle Slug (Database). The payload carries `__ownerId` alongside
   // the profile blob — we strip it into its own state so widgets that need
@@ -94,40 +95,40 @@ export default function View() {
   // "empty link" screen — otherwise the user sees the EmptyState flash for
   // a few hundred ms before the real profile renders. Only commit to
   // EmptyState once loading is done AND no profile came back.
-  if (loading) {
-    return <ProfileLoading />;
-  }
-  if (!profile) {
-    return <EmptyState />;
-  }
+  const splashEnabled = !!profile?.theme?.splash?.enabled;
+  const showSplash = splashEnabled && !splashGone;
 
-  const splashEnabled = !!profile.theme?.splash?.enabled;
-  const showSplash = splashEnabled && !entered;
-
-  // When music autoplay is desired, we delay the player's autoplay until the
-  // splash is dismissed (giving the browser a real user gesture).
-  const music = {
-    ...(profile.music || { enabled: false }),
-    autoplay: (profile.music?.autoplay ?? false) && (!splashEnabled || entered),
+  const musicConfig = {
+    ...(profile?.music || { enabled: false }),
+    autoplay: (profile?.music?.autoplay ?? false) && (!splashEnabled || entered),
   };
 
+  const accentHex = profile ? resolveAccent(profile.theme?.accent).hex : '#5865F2';
+
   return (
-    <>
-      {showSplash && (
-        <SplashScreen
-          text={profile.theme.splash.text || 'Click to enter'}
-          subtitle={profile.theme.splash.subtitle}
-          accent={profile.theme?.accent}
-          onDismiss={() => setEntered(true)}
-        />
+    <MusicPlayer music={musicConfig} accent={accentHex}>
+      {loading ? (
+        <ProfileLoading />
+      ) : !profile ? (
+        <EmptyState />
+      ) : (
+        <>
+          {showSplash && (
+            <SplashScreen
+              text={profile.theme.splash.text || 'Click to enter'}
+              subtitle={profile.theme.splash.subtitle}
+              accent={profile.theme?.accent}
+              onEnter={() => setEntered(true)}
+              onDismiss={() => setSplashGone(true)}
+            />
+          )}
+          <ProfileBody profile={profile} isMobile={isMobile} ownerId={ownerId} slug={slug} />
+          {slug && profile.theme?.guestbook?.enabled !== false && (
+            <GuestbookFloating slug={slug} accent={accentHex} />
+          )}
+        </>
       )}
-      <MusicPlayer music={music} accent={resolveAccent(profile.theme?.accent).hex}>
-        <ProfileBody profile={profile} isMobile={isMobile} ownerId={ownerId} slug={slug} />
-        {slug && profile.theme?.guestbook?.enabled !== false && (
-          <GuestbookFloating slug={slug} accent={resolveAccent(profile.theme?.accent).hex} />
-        )}
-      </MusicPlayer>
-    </>
+    </MusicPlayer>
   );
 }
 

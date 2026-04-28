@@ -16,6 +16,7 @@ export default function SplashScreen({
   subtitle = '',
   accent = '#5865F2',
   onDismiss,
+  onEnter,
 }) {
   const [visible, setVisible] = useState(true);
   const typed = useTypewriter(text, 45);
@@ -23,12 +24,18 @@ export default function SplashScreen({
   // Allow dismiss via any key too — keyboards & touchpads.
   useEffect(() => {
     if (!visible) return;
-    const onKey = () => setVisible(false);
+    const onKey = () => {
+      setVisible(false);
+      onEnter?.();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [visible]);
+  }, [visible, onEnter]);
 
-  const handleClick = () => setVisible(false);
+  const handleClick = () => {
+    setVisible(false);
+    onEnter?.();
+  };
 
   return (
     <AnimatePresence onExitComplete={onDismiss}>

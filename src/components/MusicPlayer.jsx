@@ -138,6 +138,7 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
           const tag = document.createElement('script');
           tag.id = 'yt-iframe-api';
           tag.src = 'https://www.youtube.com/iframe_api';
+          // Start loading even before we have a video ID
           document.body.appendChild(tag);
         }
         let attempts = 0;
@@ -153,6 +154,9 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
           }
         }, 100);
       });
+
+    // Start loading the API immediately on mount
+    ensureApi().catch(() => {});
 
       ensureApi().then((YT) => {
         if (cancelled || !ytContainerRef.current) return;
@@ -256,11 +260,11 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
     if (source.kind !== 'youtube') return;
     const id = setInterval(() => {
       const p = ytPlayerRef.current;
-      if (!p || !ytReadyRef.current) return;
+      if (!p || !ytReady) return;
       try { setCurrentTime(p.getCurrentTime() || 0); } catch { }
     }, 500);
     return () => clearInterval(id);
-  }, [source.kind]);
+  }, [source.kind, ytReady]);
 
   // ---------------- Controls ----------------
   const play = useCallback(() => {
