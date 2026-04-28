@@ -56,9 +56,12 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
     el.addEventListener('play', onPlay);
     el.addEventListener('pause', onPause);
 
-    if (music.autoplay && !hideControls) {
+    if (music.autoplay) {
       el.play()
-        .then(() => setNeedsGesture(false))
+        .then(() => {
+          setNeedsGesture(false);
+          setPlaying(true);
+        })
         .catch(() => setNeedsGesture(true));
     }
 
@@ -93,7 +96,21 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
       el.removeEventListener('pause', onPause);
       el.removeEventListener('play', ensureAnalyser);
     };
-  }, [source.kind, music.src, music.enabled, music.autoplay, volume]);
+  }, [source.kind, music.src, music.enabled]);
+
+  // Handle programmatic autoplay/play for audio
+  useEffect(() => {
+    if (!music.enabled || source.kind !== 'audio' || !music.autoplay) return;
+    const el = audioRef.current;
+    if (!el) return;
+    
+    el.play()
+      .then(() => {
+        setNeedsGesture(false);
+        setPlaying(true);
+      })
+      .catch(() => setNeedsGesture(true));
+  }, [music.autoplay, music.enabled, source.kind]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
@@ -139,7 +156,7 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
       ytPlayerRef.current = new YT.Player(host.id, {
         videoId: source.id,
         playerVars: {
-          autoplay: (music.autoplay && !hideControls) ? 1 : 0,
+          autoplay: music.autoplay ? 1 : 0,
           controls: 0,
           disablekb: 1,
           modestbranding: 1,
@@ -160,10 +177,11 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
               if (data) setYtMeta({ title: data.title, artist: data.author });
             } catch (err) { }
 
-            if (music.autoplay && !hideControls) {
+            if (music.autoplay) {
               // YouTube's playVideo() doesn't return a promise.
               // We'll call it and then check if it's actually playing after a short delay.
               setTimeout(() => {
+                if (cancelled) return;
                 try {
                   e.target.playVideo();
                 } catch (err) {
@@ -211,7 +229,27 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
       ytPlayerRef.current = null;
       ytReadyRef.current = false;
     };
-  }, [source.kind, source.id, music.enabled, music.autoplay]);
+  }, [source.kind, source.id, music.enabled]);
+
+  // Handle programmatic autoplay/play for YouTube
+  useEffect(() => {
+    if (!music.enabled || source.kind !== 'youtube' || !music.autoplay) return;
+    if (!ytReadyRef.current || !ytPlayerRef.current) return;
+
+    try {
+      ytPlayerRef.current.playVideo();
+      // If it still hasn't started playing after a bit, the browser might have blocked it
+      const check = setTimeout(() => {
+        const state = ytPlayerRef.current?.getPlayerState?.();
+        if (state !== 1) { // 1 is PLAYING
+          setNeedsGesture(true);
+        }
+      }, 1000);
+      return () => clearTimeout(check);
+    } catch (err) {
+      setNeedsGesture(true);
+    }
+  }, [music.autoplay, music.enabled, source.kind]);
 
   useEffect(() => {
     if (source.kind !== 'youtube') return;
