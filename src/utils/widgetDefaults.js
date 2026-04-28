@@ -174,6 +174,22 @@ export const WIDGET_CATALOG = {
       showSpotify: true,
     },
   },
+  twitchStream: {
+    type: 'twitchStream',
+    label: 'Twitch Stream',
+    defaultPos: { x: 4, y: 14 },
+    defaultSize: { w: 30, h: 30 },
+    style: { ...baseStyle(), bgOpacity: 0.05 },
+    data: { channel: '' },
+  },
+  guestbook: {
+    type: 'guestbook',
+    label: 'Guestbook',
+    defaultPos: { x: 4, y: 50 },
+    defaultSize: { w: 38, h: 30 },
+    style: { ...baseStyle(), bgOpacity: 0.05 },
+    data: { maxEntries: 6 },
+  },
 };
 
 export const WIDGET_TYPES = Object.keys(WIDGET_CATALOG);

@@ -15,6 +15,8 @@ import NowPlayingWidget from './NowPlayingWidget.jsx';
 import MusicProgressWidget from './MusicProgressWidget.jsx';
 import VisitorCounterWidget from './VisitorCounterWidget.jsx';
 import DiscordPresenceWidget from './DiscordPresenceWidget.jsx';
+import TwitchStreamWidget from './TwitchStreamWidget.jsx';
+import GuestbookWidget from './GuestbookWidget.jsx';
 
 export const WIDGET_REGISTRY = {
   avatar: { component: AvatarWidget, label: 'Avatar & identité' },
@@ -28,4 +30,6 @@ export const WIDGET_REGISTRY = {
   musicProgress: { component: MusicProgressWidget, label: 'Progression musique' },
   visitorCounter: { component: VisitorCounterWidget, label: 'Compteur visiteurs' },
   discordPresence: { component: DiscordPresenceWidget, label: 'Discord Presence' },
+  twitchStream: { component: TwitchStreamWidget, label: 'Twitch Stream' },
+  guestbook: { component: GuestbookWidget, label: 'Guestbook' },
 };

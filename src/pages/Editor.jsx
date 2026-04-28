@@ -16,6 +16,9 @@ import {
 } from '../utils/widgetDefaults.js';
 import { encodeProfile } from '../utils/encode.js';
 import { getMe, getMyProfile, logout, saveProfile } from '../utils/api.js';
+import { resolveAccent } from '../utils/theme.js';
+import HistoryDrawer from '../components/editor/HistoryDrawer.jsx';
+import TemplateConfirmModal from '../components/editor/TemplateConfirmModal.jsx';
 
 const STORAGE_KEY = 'jimp:profile';
 const AUTOSAVE_DEBOUNCE_MS = 5000;
@@ -54,6 +57,34 @@ export default function Editor() {
     () => profile.widgets.find((w) => w.id === selectedId) || null,
     [profile.widgets, selectedId],
   );
+
+  // Templates apply confirmation + history drawer state.
+  const [pendingTemplate, setPendingTemplate] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const accentHex = useMemo(
+    () => resolveAccent(profile.theme?.accent).hex,
+    [profile.theme?.accent],
+  );
+
+  // Listen for the import flow's CustomEvent — the modal lives inside
+  // VanityUrlPanel which doesn't have direct access to setProfile, so it
+  // dispatches the imported blob and we handle it here behind the same
+  // confirmation flow as templates.
+  useEffect(() => {
+    const handler = (e) => {
+      const imported = e.detail;
+      if (!imported) return;
+      setPendingTemplate({
+        id: 'import',
+        name: 'Imported profile',
+        thumbnailGradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        profile: imported,
+      });
+    };
+    window.addEventListener('jimp:profile-import', handler);
+    return () => window.removeEventListener('jimp:profile-import', handler);
+  }, []);
 
   /* -------------------------------------------------------------------- */
   /* Hydration — pull the server profile when the user is logged in        */
@@ -292,8 +323,9 @@ export default function Editor() {
           onPreview={openPreview}
           onReset={resetProfile}
           onLogout={handleLogout}
+          onOpenHistory={() => setHistoryOpen(true)}
         />
-        <MusicPlayer music={profile.music} accent={profile.theme?.accent} hideControls>
+        <MusicPlayer music={profile.music} accent={accentHex} hideControls>
           <DragCanvas
             profile={profile}
             selectedId={selectedId}
@@ -344,7 +376,33 @@ export default function Editor() {
         onUpdateWidgetStyle={updateWidgetStyle}
         me={me}
         onSlugClaimed={handleSlugClaimed}
+        onApplyTemplate={(tpl) => setPendingTemplate(tpl)}
+        serverSlug={serverSlug}
+        onOpenHistory={() => setHistoryOpen(true)}
       />
+
+      {pendingTemplate && (
+        <TemplateConfirmModal
+          template={pendingTemplate}
+          onCancel={() => setPendingTemplate(null)}
+          onConfirm={() => {
+            setProfile(pendingTemplate.profile);
+            setSelectedId(null);
+            setPendingTemplate(null);
+          }}
+        />
+      )}
+
+      {historyOpen && (
+        <HistoryDrawer
+          slug={serverSlug}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={(restoredData) => {
+            setProfile(restoredData);
+            setHistoryOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -363,6 +421,7 @@ function TopBar({
   onPreview,
   onReset,
   onLogout,
+  onOpenHistory,
 }) {
   return (
     <div className="pointer-events-none absolute left-0 right-0 top-0 z-40 flex items-center justify-between px-6 py-5">
@@ -388,6 +447,16 @@ function TopBar({
       </div>
 
       <div className="pointer-events-auto flex items-center gap-2">
+        {me && hasServerProfile && (
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white/60 transition hover:bg-white/10 hover:text-white"
+            title="Restore a previous save"
+          >
+            History
+          </button>
+        )}
         <button
           type="button"
           onClick={onReset}

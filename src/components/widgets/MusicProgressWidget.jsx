@@ -12,11 +12,12 @@ import { formatTime } from '../../utils/music.js';
  * Prev/Next are visual — we don't have a playlist concept on client-side.
  * They feel right in a music widget and may be hooked to real actions later.
  */
-export default function MusicProgressWidget({ widget, accent }) {
+export default function MusicProgressWidget({ widget, accent, accentCss }) {
   const { playing, currentTime, duration, canSeek, controls, meta } = useMusic();
   const { showControls, showTime } = widget.data;
 
   const accentColor = accent || '#5865F2';
+  const accentBg = accentCss || accentColor;
   const hasRealTime = duration > 0;
   const progressPct = hasRealTime ? (currentTime / duration) * 100 : 0;
 
@@ -100,7 +101,7 @@ export default function MusicProgressWidget({ widget, accent }) {
           className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-150"
           style={{
             width: `${progressPct}%`,
-            background: accentColor,
+            background: accentBg,
           }}
         />
       </div>

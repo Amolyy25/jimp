@@ -11,7 +11,9 @@ import { WIDGET_REGISTRY } from '../components/widgets/index.js';
 import WidgetFrame from '../components/widgets/WidgetFrame.jsx';
 import { useIsMobile } from '../hooks/useIsMobile.js';
 import { useMusic } from '../utils/MusicContext.jsx';
-import { getProfileBySlug } from '../utils/api.js';
+import { getProfileBySlug, recordView, recordClick } from '../utils/api.js';
+import { resolveAccent } from '../utils/theme.js';
+import GuestbookFloating from '../components/GuestbookFloating.jsx';
 
 /**
  * Public profile page.
@@ -112,28 +114,68 @@ export default function View() {
           onDismiss={() => setEntered(true)}
         />
       )}
-      <MusicPlayer music={music} accent={profile.theme?.accent}>
-        <ProfileBody profile={profile} isMobile={isMobile} ownerId={ownerId} />
+      <MusicPlayer music={music} accent={resolveAccent(profile.theme?.accent).hex}>
+        <ProfileBody profile={profile} isMobile={isMobile} ownerId={ownerId} slug={slug} />
+        {slug && profile.theme?.guestbook?.enabled !== false && (
+          <GuestbookFloating slug={slug} accent={resolveAccent(profile.theme?.accent).hex} />
+        )}
       </MusicPlayer>
     </>
   );
 }
 
 /** The body is its own component so it can consume MusicContext via hooks. */
-function ProfileBody({ profile, isMobile, ownerId }) {
+function ProfileBody({ profile, isMobile, ownerId, slug }) {
   const { playing } = useMusic();
   const visibleWidgets = profile.widgets.filter((w) => w.visible !== false);
   const entryAnim = profile.theme?.entryAnimation || 'none';
   const animClass = entryAnim !== 'none' ? `animate-entry-${entryAnim}` : '';
 
-  const accent = profile.theme?.accent || '#5865F2';
+  const accentResolved = resolveAccent(profile.theme?.accent);
+  const accent = accentResolved.hex;
+  const accentCss = accentResolved.css;
+
+  // Fire-and-forget view event — only on slug-based loads, throttled by the
+  // session cookie set server-side.
+  useEffect(() => {
+    if (!slug) return;
+    recordView(slug);
+  }, [slug]);
+
+  // Click analytics: bubble-phase listener intercepts <a> clicks anywhere
+  // inside the profile and posts {target, kind} before the navigation lands.
+  useEffect(() => {
+    if (!slug) return;
+    const onClick = (e) => {
+      const a = e.target.closest && e.target.closest('a[href]');
+      if (!a) return;
+      const href = a.getAttribute('href');
+      if (!href || href.startsWith('#')) return;
+      const widgetEl = a.closest('[data-widget-type]');
+      const kind = widgetEl?.getAttribute('data-widget-type') || 'link';
+      recordClick(slug, { kind, target: href });
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [slug]);
+
+  const ctx = { musicPlaying: playing, accent, accentCss, ownerId, slug };
+  const customCss = profile.theme?.customCss || '';
 
   return (
     <div
+      id="profile-root"
       className={`relative min-h-screen w-full overflow-x-hidden ${animClass}`}
       style={{ background: profile.theme?.pageBg || '#0a0a0a' }}
     >
       <BackgroundLayer background={profile.background} />
+
+      {/* Scoped custom CSS — only the bytes that survived server sanitization
+          end up here, but we still scope to #profile-root so a stray rule
+          doesn't leak to /editor. */}
+      {customCss && (
+        <style>{`#profile-root { ${customCss} }`}</style>
+      )}
 
       {/* Ambient effects — disabled on mobile to keep the feed light */}
       {!isMobile && (
@@ -153,7 +195,7 @@ function ProfileBody({ profile, isMobile, ownerId }) {
               isMobile
               index={i}
             >
-              {renderWidget(widget, { musicPlaying: playing, accent: profile.theme?.accent, ownerId })}
+              {renderWidget(widget, ctx)}
             </WidgetFrame>
           ))}
         </div>
@@ -224,8 +266,10 @@ function ProfileBody({ profile, isMobile, ownerId }) {
                         <Comp
                           widget={w}
                           musicPlaying={playing}
-                          accent={profile.theme?.accent}
+                          accent={accent}
+                          accentCss={accentCss}
                           ownerId={ownerId}
+                          slug={slug}
                         />
                       </WidgetFrame>
                     </motion.div>

@@ -26,6 +26,10 @@ export const MusicContext = createContext({
     prev: () => {},
   },
   meta: { title: '', artist: '' },
+  // Web Audio AnalyserNode exposed when the source is a native <audio>.
+  // null for YouTube/Spotify/SoundCloud (their streams are sandboxed and
+  // we can't tap them from JS — visualizers fall back to fake bars).
+  analyser: null,
 });
 
 export function useMusic() {

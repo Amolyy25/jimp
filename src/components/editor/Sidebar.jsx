@@ -5,8 +5,12 @@ import StylePanel from './StylePanel.jsx';
 import BackgroundPanel from './BackgroundPanel.jsx';
 import MusicPanel from './MusicPanel.jsx';
 import ColorInput from './controls/ColorInput.jsx';
+import SliderInput from './controls/SliderInput.jsx';
 import TextInput from './controls/TextInput.jsx';
 import VanityUrlPanel from './VanityUrlPanel.jsx';
+import TemplatesPanel from './TemplatesPanel.jsx';
+import AnalyticsPanel from './AnalyticsPanel.jsx';
+import { resolveAccent } from '../../utils/theme.js';
 
 /**
  * Right-hand editor sidebar.
@@ -33,6 +37,9 @@ export default function Sidebar({
   onSectionChange,
   me,
   onSlugClaimed,
+  onApplyTemplate,
+  serverSlug,
+  onOpenHistory,
 }) {
   return (
     <aside className="flex h-screen w-[380px] flex-col border-l border-white/5 bg-ink-900">
@@ -59,6 +66,9 @@ export default function Sidebar({
           onUpdateMusic={onUpdateMusic}
           me={me}
           onSlugClaimed={onSlugClaimed}
+          onApplyTemplate={onApplyTemplate}
+          serverSlug={serverSlug}
+          onOpenHistory={onOpenHistory}
         />
       )}
     </aside>
@@ -82,6 +92,9 @@ function GlobalView({
   onUpdateMusic,
   me,
   onSlugClaimed,
+  onApplyTemplate,
+  serverSlug,
+  onOpenHistory,
 }) {
 
   return (
@@ -95,9 +108,11 @@ function GlobalView({
       <SectionTabs
         sections={[
           { id: 'widgets', label: 'Widgets' },
+          { id: 'templates', label: 'Templates' },
           { id: 'background', label: 'Background' },
           { id: 'music', label: 'Music' },
           { id: 'theme', label: 'Theme' },
+          { id: 'analytics', label: 'Analytics' },
           { id: 'share', label: 'Share' },
         ]}
         active={section}
@@ -114,6 +129,9 @@ function GlobalView({
             onRemoveWidget={onRemoveWidget}
           />
         )}
+        {section === 'templates' && (
+          <TemplatesPanel onApply={onApplyTemplate} />
+        )}
         {section === 'background' && (
           <BackgroundPanel
             background={profile.background}
@@ -125,6 +143,9 @@ function GlobalView({
         )}
         {section === 'theme' && (
           <ThemeSection theme={profile.theme} onChange={onUpdateTheme} />
+        )}
+        {section === 'analytics' && (
+          <AnalyticsPanel slug={serverSlug} onOpenHistory={onOpenHistory} />
         )}
         {section === 'share' && (
           <VanityUrlPanel
@@ -150,11 +171,7 @@ function ThemeSection({ theme, onChange }) {
 
   return (
     <div className="space-y-4">
-      <ColorInput
-        label="Accent color"
-        value={theme?.accent}
-        onChange={(v) => onChange({ accent: v })}
-      />
+      <AccentEditor accent={theme?.accent} onChange={(v) => onChange({ accent: v })} />
       <ColorInput
         label="Page background"
         value={theme?.pageBg}
@@ -280,6 +297,161 @@ function ThemeSection({ theme, onChange }) {
         maxLength={80}
         filter
       />
+
+      <div className="border-t border-white/5" />
+
+      <CustomCssEditor
+        value={theme?.customCss || ''}
+        onChange={(v) => onChange({ customCss: v })}
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Accent editor — solid or gradient                                          */
+/* -------------------------------------------------------------------------- */
+
+function AccentEditor({ accent, onChange }) {
+  const resolved = resolveAccent(accent);
+  const isGradient = resolved.kind === 'gradient';
+
+  const setSolid = (hex) => onChange({ kind: 'solid', value: hex });
+  const setGradient = (patch) =>
+    onChange({
+      kind: 'gradient',
+      from: resolved.from,
+      to: resolved.to,
+      angle: resolved.angle,
+      ...patch,
+    });
+
+  return (
+    <div className="space-y-2.5 rounded-2xl border border-white/5 bg-white/[0.02] p-3">
+      <div className="flex items-center justify-between">
+        <span className="eyebrow">Accent</span>
+        <div className="flex rounded-full border border-white/10 bg-black/30 p-0.5 text-[10px] font-bold uppercase tracking-widest">
+          <button
+            type="button"
+            onClick={() => setSolid(resolved.hex)}
+            className={[
+              'rounded-full px-3 py-1 transition',
+              !isGradient ? 'bg-discord text-white' : 'text-white/40',
+            ].join(' ')}
+          >
+            Solid
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setGradient({
+                from: resolved.from,
+                to: shiftHue(resolved.hex),
+              })
+            }
+            className={[
+              'rounded-full px-3 py-1 transition',
+              isGradient ? 'bg-discord text-white' : 'text-white/40',
+            ].join(' ')}
+          >
+            Gradient
+          </button>
+        </div>
+      </div>
+
+      <div
+        className="h-10 w-full rounded-lg border border-white/10"
+        style={{ background: resolved.css }}
+        aria-hidden
+      />
+
+      {!isGradient ? (
+        <ColorInput
+          label="Color"
+          value={resolved.hex}
+          onChange={(v) => setSolid(v)}
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <ColorInput
+              label="From"
+              value={resolved.from}
+              onChange={(v) => setGradient({ from: v })}
+            />
+            <ColorInput
+              label="To"
+              value={resolved.to}
+              onChange={(v) => setGradient({ to: v })}
+            />
+          </div>
+          <SliderInput
+            label="Angle"
+            min={0}
+            max={360}
+            step={1}
+            value={resolved.angle}
+            onChange={(v) => setGradient({ angle: v })}
+            unit="°"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function shiftHue(hex) {
+  // Cheap "give me a different color" — flip a couple of channels.
+  if (!hex || !hex.startsWith('#')) return '#3BA9FF';
+  let h = hex.slice(1);
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const swap = (n) => Math.max(0, Math.min(255, 255 - n));
+  return `#${[swap(r), swap(g), swap(b)]
+    .map((n) => n.toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Custom CSS editor                                                          */
+/* -------------------------------------------------------------------------- */
+
+const CUSTOM_CSS_LIMIT = 4096;
+
+function CustomCssEditor({ value, onChange }) {
+  const len = (value || '').length;
+  const over = len > CUSTOM_CSS_LIMIT;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="eyebrow">Custom CSS (advanced)</span>
+        <span
+          className={[
+            'text-[10px] font-mono tabular-nums',
+            over ? 'text-red-400' : 'text-white/30',
+          ].join(' ')}
+        >
+          {len}/{CUSTOM_CSS_LIMIT}
+        </span>
+      </div>
+      <textarea
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value.slice(0, CUSTOM_CSS_LIMIT))}
+        spellCheck={false}
+        rows={8}
+        placeholder={`/* scoped to your profile */\n.widget { letter-spacing: 0.04em; }\n[data-widget-type="games"] { transform: rotate(-1deg); }`}
+        className="block w-full resize-y rounded-xl border border-white/10 bg-black/40 px-3 py-2 font-mono text-[11px] leading-relaxed text-white/80 outline-none transition focus:border-discord/60"
+      />
+      <p className="text-[10px] leading-relaxed text-white/40">
+        Scoped to <code className="text-white/60">#profile-root</code>. Available
+        selectors: <code>.widget</code>,{' '}
+        <code>[data-widget-type=&quot;games&quot;]</code>,{' '}
+        <code>[data-widget-type=&quot;avatar&quot;]</code>, etc.{' '}
+        <code>@import</code>, <code>expression()</code> and{' '}
+        <code>url(javascript:…)</code> are stripped server-side.
+      </p>
     </div>
   );
 }
@@ -559,6 +731,9 @@ function widgetEmoji(type) {
       nowPlaying: '🎵',
       musicProgress: '🎚️',
       visitorCounter: '👀',
+      discordPresence: '🟣',
+      twitchStream: '🟪',
+      guestbook: '📝',
     }[type] || '▫️'
   );
 }

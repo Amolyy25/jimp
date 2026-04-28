@@ -15,6 +15,7 @@
 
 import { Buffer } from 'node:buffer';
 import { createCanvas, loadImage, GlobalFonts } from '@napi-rs/canvas';
+import { resolveAccentForCanvas, resolveAccentGradientForCanvas } from './accentServer.js';
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -65,7 +66,8 @@ export async function renderProfileOg(slug, profileData) {
   const ctx = canvas.getContext('2d');
 
   const theme = profileData.theme || {};
-  const accent = theme.accent || '#5865F2';
+  const accent = resolveAccentForCanvas(theme.accent); // dominant hex
+  const accentGrad = resolveAccentGradientForCanvas(theme.accent);
   const pageBg = theme.pageBg || '#0a0a0a';
 
   // -------- Background --------
@@ -96,7 +98,16 @@ export async function renderProfileOg(slug, profileData) {
   }
 
   // -------- Wordmark --------
-  ctx.fillStyle = accent;
+  // The brand square uses the gradient when the user picked one — gives a
+  // visible cue in social previews without redesigning the OG layout.
+  if (accentGrad.kind === 'gradient') {
+    const g = ctx.createLinearGradient(60, 60, 108, 108);
+    g.addColorStop(0, accentGrad.from);
+    g.addColorStop(1, accentGrad.to);
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = accent;
+  }
   ctx.fillRect(60, 60, 48, 48);
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 34px Inter-Bold, sans-serif';

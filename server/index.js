@@ -31,6 +31,13 @@ import pkg from '@prisma/client';
 import { isSlugForbidden } from './forbiddenSlugs.js';
 import { renderProfileOg, invalidateOgCache } from './og.js';
 import { registerSpotifyRoutes } from './spotify.js';
+import { sanitizeCustomCss } from './sanitizeCss.js';
+import { registerTwitchRoutes } from './twitch.js';
+import { registerImportRoutes } from './importLinktree.js';
+import { registerQrRoutes } from './qr.js';
+import { registerAnalyticsRoutes } from './analytics.js';
+import { registerVersionRoutes } from './versions.js';
+import { registerSocialRoutes } from './social.js';
 
 const { PrismaClient } = pkg;
 
@@ -284,6 +291,13 @@ app.post('/api/profiles', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'This slug is reserved or not allowed' });
   }
 
+  // Sanitize the optional power-user custom CSS before it touches the DB.
+  // Done in-place so the snapshotted version we write to ProfileVersion
+  // matches what /:slug eventually renders.
+  if (data?.theme?.customCss != null) {
+    data.theme.customCss = sanitizeCustomCss(data.theme.customCss);
+  }
+
   try {
     const existing = await prisma.profile.findUnique({ where: { userId } });
 
@@ -296,6 +310,11 @@ app.post('/api/profiles', authenticate, async (req, res) => {
         data: { slug: normalizedSlug, data, userId, slugChangedAt: new Date() },
       });
       invalidateOgCache(normalizedSlug);
+      // Snapshot the first save so the user has at least one entry in their
+      // history timeline (Feature 13).
+      await snapshotVersion(prisma, profile.id, data).catch((err) => {
+        console.warn('[versions] snapshot failed:', err.message);
+      });
       return res.json({ ...profile, ...cooldownFor(profile) });
     }
 
@@ -331,6 +350,11 @@ app.post('/api/profiles', authenticate, async (req, res) => {
     // crawlers re-render next time they hit /:slug.
     invalidateOgCache(normalizedSlug);
     if (slugChanged) invalidateOgCache(existing.slug);
+    // Append a version snapshot (Feature 13). Capped at 20 entries per
+    // profile inside snapshotVersion. Best-effort — never block the save.
+    snapshotVersion(prisma, profile.id, data).catch((err) => {
+      console.warn('[versions] snapshot failed:', err.message);
+    });
     res.json({ ...profile, ...cooldownFor(profile) });
   } catch (err) {
     if (err.code === 'P2002') {
@@ -367,6 +391,17 @@ app.get('/api/og/:slug', async (req, res) => {
 /* -------------------------------------------------------------------------- */
 
 registerSpotifyRoutes(app, prisma, authenticate);
+
+/* -------------------------------------------------------------------------- */
+/* Other feature routes                                                        */
+/* -------------------------------------------------------------------------- */
+
+registerTwitchRoutes(app);
+registerImportRoutes(app);
+registerQrRoutes(app, prisma);
+registerAnalyticsRoutes(app, prisma, authenticate);
+registerVersionRoutes(app, prisma, authenticate);
+registerSocialRoutes(app, prisma, authenticate);
 
 app.get('/api/check-slug/:slug', async (req, res) => {
   const slug = (req.params.slug || '').toLowerCase();
@@ -569,4 +604,29 @@ function cooldownFor(profile) {
     remainingMs,
     locked: remainingMs > 0,
   };
+}
+
+const VERSIONS_PER_PROFILE = 20;
+
+/**
+ * Append a snapshot of `data` for `profileId`, then trim the oldest entries
+ * so each profile keeps at most VERSIONS_PER_PROFILE rows. Skipping the
+ * insert when nothing changed is the caller's job — we deliberately do
+ * nothing fancy here so the on-save path stays fast.
+ */
+async function snapshotVersion(prisma, profileId, data) {
+  await prisma.profileVersion.create({
+    data: { profileId, data },
+  });
+  const ids = await prisma.profileVersion.findMany({
+    where: { profileId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+    skip: VERSIONS_PER_PROFILE,
+  });
+  if (ids.length) {
+    await prisma.profileVersion.deleteMany({
+      where: { id: { in: ids.map((v) => v.id) } },
+    });
+  }
 }

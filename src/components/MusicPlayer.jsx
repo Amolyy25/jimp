@@ -34,6 +34,9 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
   const ytPlayerRef = useRef(null);
   const ytContainerRef = useRef(null);
   const ytReadyRef = useRef(false);
+  const audioCtxRef = useRef(null);
+  const audioSourceRef = useRef(null);
+  const [analyser, setAnalyser] = useState(null);
 
   // ---------------- native audio ----------------
   useEffect(() => {
@@ -59,11 +62,36 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
         .catch(() => setNeedsGesture(true));
     }
 
+    // Build an AnalyserNode the first time the user actually starts the
+    // track. createMediaElementSource MUST be called once per element —
+    // if we do it eagerly before the user gesture, some browsers throw
+    // (or the AudioContext stays suspended forever).
+    const ensureAnalyser = () => {
+      if (audioSourceRef.current) return;
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtxRef.current = audioCtxRef.current || new Ctx();
+        const src = audioCtxRef.current.createMediaElementSource(el);
+        const node = audioCtxRef.current.createAnalyser();
+        node.fftSize = 128; // 64 frequency bins — plenty for a bar visualizer
+        src.connect(node);
+        node.connect(audioCtxRef.current.destination);
+        audioSourceRef.current = src;
+        setAnalyser(node);
+      } catch (err) {
+        // Already wired up, or the browser refused — visualizer just falls
+        // back to fake bars.
+      }
+    };
+    el.addEventListener('play', ensureAnalyser, { once: true });
+
     return () => {
       el.removeEventListener('timeupdate', onTimeUpdate);
       el.removeEventListener('loadedmetadata', onLoadedMeta);
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
+      el.removeEventListener('play', ensureAnalyser);
     };
   }, [source.kind, music.src, music.enabled, music.autoplay, volume]);
 
@@ -244,11 +272,12 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
     duration,
     canSeek: source.kind === 'audio' || source.kind === 'youtube',
     controls: { play, pause, toggle, seek, prev, next },
-    meta: { 
-      title: (source.kind === 'youtube' && ytMeta.title) || music.trackTitle || '', 
-      artist: (source.kind === 'youtube' && ytMeta.artist) || music.artist || '' 
+    meta: {
+      title: (source.kind === 'youtube' && ytMeta.title) || music.trackTitle || '',
+      artist: (source.kind === 'youtube' && ytMeta.artist) || music.artist || ''
     },
-  }), [playing, currentTime, duration, source.kind, play, pause, toggle, seek, prev, next, music.trackTitle, music.artist, ytMeta]);
+    analyser,
+  }), [playing, currentTime, duration, source.kind, play, pause, toggle, seek, prev, next, music.trackTitle, music.artist, ytMeta, analyser]);
 
   const showControlPill = 
     !hideControls && 

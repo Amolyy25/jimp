@@ -1,5 +1,6 @@
 import { useMusic } from '../../utils/MusicContext.jsx';
 import { useSpotifyNowPlaying } from '../../hooks/useSpotifyNowPlaying.js';
+import AudioVisualizer from '../AudioVisualizer.jsx';
 
 /**
  * "Now playing" widget.
@@ -14,10 +15,10 @@ import { useSpotifyNowPlaying } from '../../hooks/useSpotifyNowPlaying.js';
  * The widget receives `ownerId` through the View.jsx render context so it
  * can poll the public Spotify endpoint.
  */
-export default function NowPlayingWidget({ widget, musicPlaying, accent, ownerId }) {
+export default function NowPlayingWidget({ widget, musicPlaying, accent, accentCss, ownerId }) {
   const { meta, playing } = useMusic();
   const { trackTitle, artist, syncFromPlayer } = widget.data;
-  const bar = accent || '#5865F2';
+  const bar = accentCss || accent || '#5865F2';
 
   const spotify = useSpotifyNowPlaying(ownerId || null);
   const spotifyPlaying = spotify.state === 'playing';
@@ -49,23 +50,15 @@ export default function NowPlayingWidget({ widget, musicPlaying, accent, ownerId
           className="h-12 w-12 flex-shrink-0 rounded-md object-cover"
         />
       ) : (
-        <div className="flex items-end gap-0.5">
-          {[0, 1, 2, 3].map((i) => (
-            <span
-              key={i}
-              className="block w-1 rounded-full"
-              style={{
-                height: '18px',
-                background: bar,
-                opacity: isPlaying ? 0.9 : 0.3,
-                transform: isPlaying ? undefined : 'scaleY(0.45)',
-                animation: isPlaying
-                  ? `eq-${i} 900ms ${i * 110}ms ease-in-out infinite alternate`
-                  : 'none',
-                transformOrigin: 'bottom',
-              }}
-            />
-          ))}
+        <div className="h-6 w-12 flex-shrink-0">
+          <AudioVisualizer
+            variant="bars"
+            bars={4}
+            height={24}
+            width="100%"
+            accent={bar}
+            active={isPlaying}
+          />
         </div>
       )}
 

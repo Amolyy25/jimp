@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BackgroundLayer from '../BackgroundLayer.jsx';
 import WidgetFrame from '../widgets/WidgetFrame.jsx';
 import { WIDGET_REGISTRY } from '../widgets/index.js';
+import { resolveAccent } from '../../utils/theme.js';
 
 /**
  * Freeform editor canvas.
@@ -129,7 +130,9 @@ export default function DragCanvas({
     [profile.widgets],
   );
 
-  const accent = profile.theme?.accent || '#5865F2';
+  const accentResolved = resolveAccent(profile.theme?.accent);
+  const accent = accentResolved.hex;
+  const accentCss = accentResolved.css;
 
   /* -------------------------------------------------------------------- */
   /* Render                                                                */
@@ -195,7 +198,7 @@ export default function DragCanvas({
 
                 <div className="pointer-events-none h-full w-full">
                   <WidgetFrame widget={widget} mode="edit" index={i}>
-                    <WidgetPreview widget={widget} accent={accent} />
+                    <WidgetPreview widget={widget} accent={accent} accentCss={accentCss} />
                   </WidgetFrame>
                 </div>
 
@@ -353,7 +356,7 @@ function GuideOverlay({ guides }) {
 }
 
 /** Render a widget using the same accent as the published view. */
-function WidgetPreview({ widget, accent }) {
+function WidgetPreview({ widget, accent, accentCss }) {
   const Component = WIDGET_REGISTRY[widget.type]?.component;
   if (!Component) {
     return (
@@ -362,7 +365,7 @@ function WidgetPreview({ widget, accent }) {
       </div>
     );
   }
-  return <Component widget={widget} musicPlaying={false} accent={accent} />;
+  return <Component widget={widget} musicPlaying={false} accent={accent} accentCss={accentCss} />;
 }
 
 function DragDots() {

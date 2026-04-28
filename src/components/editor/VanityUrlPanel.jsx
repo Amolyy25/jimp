@@ -9,9 +9,13 @@ import {
   Lock,
   Clock,
   LogIn,
+  QrCode,
+  Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getMyProfile, isSlugTaken, saveProfile } from '../../utils/api.js';
+import QrModal from './QrModal.jsx';
+import ImportModal from './ImportModal.jsx';
 
 /**
  * Vanity URL panel.
@@ -35,6 +39,8 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null); // { kind: 'ok' | 'err', message }
   const [copied, setCopied] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Live countdown tick — refreshes the cooldown display every minute.
   const [, setTick] = useState(0);
@@ -315,7 +321,45 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
             </a>
           </div>
         </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => currentSlug && setQrOpen(true)}
+            disabled={!currentSlug}
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] font-semibold text-white/70 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            Get QR
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import Linktree
+          </button>
+        </div>
       </div>
+
+      {qrOpen && currentSlug && (
+        <QrModal slug={currentSlug} onClose={() => setQrOpen(false)} />
+      )}
+      {importOpen && (
+        <ImportModal
+          onClose={() => setImportOpen(false)}
+          onImported={(imported) => {
+            // Bubble the imported profile up via a custom event — Editor.jsx
+            // listens for it and replaces the current profile after a
+            // confirmation step (same flow as Templates).
+            window.dispatchEvent(
+              new CustomEvent('jimp:profile-import', { detail: imported }),
+            );
+            setImportOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

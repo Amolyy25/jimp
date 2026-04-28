@@ -32,11 +32,54 @@ export default function WidgetPanel({ widget, onUpdate }) {
       return <VisitorCounterForm data={widget.data} onUpdate={onUpdate} />;
     case 'discordPresence':
       return <DiscordPresenceForm data={widget.data} onUpdate={onUpdate} />;
+    case 'twitchStream':
+      return <TwitchStreamForm data={widget.data} onUpdate={onUpdate} />;
+    case 'guestbook':
+      return <GuestbookForm data={widget.data} onUpdate={onUpdate} />;
     default:
       return (
         <p className="text-xs text-white/40">No editor for this widget yet.</p>
       );
   }
+}
+
+function TwitchStreamForm({ data, onUpdate }) {
+  return (
+    <div className="space-y-3">
+      <TextInput
+        label="Twitch channel"
+        value={data.channel || ''}
+        onChange={(v) => onUpdate({ channel: v.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+        placeholder="e.g. shroud"
+      />
+      <p className="text-[11px] leading-relaxed text-white/40">
+        When the channel is live the widget shows the embedded player. When
+        offline it shows the avatar + an "Offline" tag. Server-side polling
+        is cached for 60 seconds.
+      </p>
+    </div>
+  );
+}
+
+function GuestbookForm({ data, onUpdate }) {
+  const max = data.maxEntries ?? 6;
+  return (
+    <div className="space-y-3">
+      <TextInput
+        label="Visible entries"
+        value={String(max)}
+        onChange={(v) => {
+          const n = Math.max(1, Math.min(20, parseInt(v, 10) || 6));
+          onUpdate({ maxEntries: n });
+        }}
+        placeholder="6"
+      />
+      <p className="text-[11px] leading-relaxed text-white/40">
+        Visitors with an account can leave one short message each. You can
+        delete any message from your own profile page.
+      </p>
+    </div>
+  );
 }
 
 /* -------------------------------------------------------------------------- */

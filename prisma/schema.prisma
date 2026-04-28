@@ -27,6 +27,10 @@ model User {
   spotifyExpiresAt    DateTime?
 
   profile             Profile?
+
+  follows             Follow[]          @relation("Follower")
+  followers           Follow[]          @relation("Followee")
+  guestbookEntries    GuestbookEntry[]
 }
 
 model Profile {
@@ -39,5 +43,79 @@ model Profile {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  versions      ProfileVersion[]
+  views         ViewEvent[]
+  clicks        ClickEvent[]
+  followedBy    Follow[]
+  guestbook     GuestbookEntry[]
+
   @@index([slug])
+}
+
+model ProfileVersion {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@index([profileId, createdAt])
+}
+
+model ViewEvent {
+  id         String   @id @default(cuid())
+  profileId  String
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // Hashed session ID — anonymous, rotated salt, no IP.
+  sessionId  String
+  referer    String?
+  country    String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([profileId, createdAt])
+  @@index([profileId, sessionId])
+}
+
+model ClickEvent {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // e.g. "socials" or "discordServers" — matches data-widget-type
+  kind      String
+  // The href that was clicked.
+  target    String
+  createdAt DateTime @default(now())
+
+  @@index([profileId, createdAt])
+}
+
+model Follow {
+  id         String   @id @default(cuid())
+  followerId String
+  follower   User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followeeId String
+  followee   User     @relation("Followee", fields: [followeeId], references: [id], onDelete: Cascade)
+  // Cached pointer to the followee's profile so feeds avoid extra joins.
+  profileId  String?
+  profile    Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@unique([followerId, followeeId])
+  @@index([followerId])
+  @@index([followeeId])
+}
+
+model GuestbookEntry {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, authorId])
+  @@index([profileId, createdAt])
 }

@@ -138,4 +138,91 @@ export async function getSpotifyNowPlaying(userId) {
   }
 }
 
+/* -------- Analytics -------- */
+
+/** Fire-and-forget — never throws. */
+export function recordView(slug) {
+  api.post('/views', { slug }).catch(() => {});
+}
+
+export function recordClick(slug, { kind, target }) {
+  api.post('/clicks', { slug, kind, target }).catch(() => {});
+}
+
+export async function getMyAnalytics(days = 7) {
+  try {
+    const { data } = await api.get(`/profiles/me/analytics?days=${days}`);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/* -------- Versions -------- */
+
+export async function listMyVersions() {
+  try {
+    const { data } = await api.get('/profiles/me/versions');
+    return data?.versions || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function restoreVersion(id) {
+  const { data } = await api.post(`/profiles/me/versions/${id}/restore`);
+  return data;
+}
+
+/* -------- Import -------- */
+
+export async function importLinktree(url) {
+  const { data } = await api.post('/import', { source: 'linktree', url });
+  return data;
+}
+
+/* -------- Social: follows + guestbook -------- */
+
+export async function follow(slug) {
+  const { data } = await api.post(`/follow/${slug}`);
+  return data;
+}
+export async function unfollow(slug) {
+  const { data } = await api.delete(`/follow/${slug}`);
+  return data;
+}
+export async function getFollowState(slug) {
+  try {
+    const { data } = await api.get(`/follow/${slug}`);
+    return data; // { following, count }
+  } catch {
+    return { following: false, count: 0 };
+  }
+}
+export async function getMyFollowing() {
+  try {
+    const { data } = await api.get('/profiles/me/following');
+    return data?.following || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function listGuestbook(slug) {
+  try {
+    const { data } = await api.get(`/guestbook/${slug}`);
+    return data?.entries || [];
+  } catch {
+    return [];
+  }
+}
+export async function postGuestbook(slug, message) {
+  const { data } = await api.post(`/guestbook/${slug}`, { message });
+  return data;
+}
+export async function deleteGuestbookEntry(slug, entryId) {
+  const { data } = await api.delete(`/guestbook/${slug}/${entryId}`);
+  return data;
+}
+
 export default api;
