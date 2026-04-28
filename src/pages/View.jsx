@@ -100,13 +100,13 @@ export default function View() {
 
   const musicConfig = {
     ...(profile?.music || { enabled: false }),
-    autoplay: (profile?.music?.autoplay ?? false) && (!splashEnabled || entered),
+    autoplay: profile?.music?.autoplay ?? false,
   };
 
   const accentHex = profile ? resolveAccent(profile.theme?.accent).hex : '#5865F2';
 
   return (
-    <MusicPlayer music={musicConfig} accent={accentHex}>
+    <MusicPlayer music={musicConfig} accent={accentHex} readyToPlay={!splashEnabled || entered}>
       {loading ? (
         <ProfileLoading />
       ) : !profile ? (

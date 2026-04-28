@@ -19,9 +19,10 @@ import { detectMusicSource, spotifyEmbedUrl, youtubeSearchUrl, spotifySearchUrl 
  * Browser autoplay policies are respected: if .play() is rejected, we wait
  * for an explicit user gesture (the "Play music" pill).
  */
-export default function MusicPlayer({ music, accent, hideControls, children }) {
+export default function MusicPlayer({ music, accent, hideControls, readyToPlay = true, children }) {
   const source = useMemo(() => detectMusicSource(music.src), [music.src]);
   const ringColor = accent || '#5865F2';
+  const shouldMountMedia = readyToPlay && music.enabled;
 
   const [playing, setPlaying] = useState(false);
   const [needsGesture, setNeedsGesture] = useState(false);
@@ -43,7 +44,7 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
 
   // ---------------- native audio ----------------
   useEffect(() => {
-    if (!music.enabled) return;
+    if (!shouldMountMedia) return;
     if (source.kind !== 'audio') return;
     const el = audioRef.current;
     if (!el) return;
@@ -103,7 +104,7 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
 
   // Handle programmatic autoplay/play for audio
   useEffect(() => {
-    if (!music.enabled || source.kind !== 'audio' || !music.autoplay) return;
+    if (!shouldMountMedia || source.kind !== 'audio' || !music.autoplay) return;
     const el = audioRef.current;
     if (!el) return;
     
@@ -124,9 +125,22 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
     }
   }, [volume]);
 
+  // Preload YouTube API immediately to save time
+  useEffect(() => {
+    if (music.enabled && source.kind === 'youtube') {
+      const existing = document.getElementById('yt-iframe-api');
+      if (!existing) {
+        const tag = document.createElement('script');
+        tag.id = 'yt-iframe-api';
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.body.appendChild(tag);
+      }
+    }
+  }, [music.enabled, source.kind]);
+
   // ---------------- YouTube IFrame API ----------------
   useEffect(() => {
-    if (!music.enabled) return;
+    if (!shouldMountMedia) return;
     if (source.kind !== 'youtube') return;
     let cancelled = false;
 
@@ -237,11 +251,11 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
         ytPlayerRef.current = null;
         setYtReady(false);
       };
-  }, [source.kind, source.id, music.enabled]);
+  }, [source.kind, source.id, shouldMountMedia]);
 
   // Handle programmatic autoplay/play for YouTube
   useEffect(() => {
-    if (!music.enabled || source.kind !== 'youtube' || !music.autoplay) return;
+    if (!shouldMountMedia || source.kind !== 'youtube' || !music.autoplay) return;
     if (!ytReady || !ytPlayerRef.current) return;
 
     try {
@@ -323,8 +337,8 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
   }), [playing, currentTime, duration, source.kind, play, pause, toggle, seek, prev, next, music.trackTitle, music.artist, ytMeta, analyser]);
 
   const showControlPill = 
-    !hideControls && 
-    music.enabled && 
+    (!hideControls || needsGesture) && 
+    shouldMountMedia && 
     source.kind !== 'empty' && 
     source.kind !== 'search';
 
@@ -332,11 +346,11 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
     <MusicContext.Provider value={ctxValue}>
       {children}
 
-      {music.enabled && source.kind === 'audio' && (
+      {shouldMountMedia && source.kind === 'audio' && (
         <audio ref={audioRef} src={source.src} loop preload="auto" className="hidden" />
       )}
 
-      {music.enabled && source.kind === 'youtube' && (
+      {shouldMountMedia && source.kind === 'youtube' && (
         <div 
           ref={ytContainerRef} 
           aria-hidden 
@@ -345,15 +359,15 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
         />
       )}
 
-      {source.kind === 'spotify' && music.enabled && (
+      {source.kind === 'spotify' && shouldMountMedia && (
         <iframe title="spotify" src={spotifyEmbedUrl(source.entity, source.id)} width="0" height="80" frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerPolicy="origin" className="pointer-events-none fixed bottom-4 left-4 z-30 h-20 w-0 opacity-0" />
       )}
 
-      {source.kind === 'soundcloud' && music.enabled && playing && (
+      {source.kind === 'soundcloud' && shouldMountMedia && playing && (
         <iframe title="soundcloud" width="0" height="0" allow="autoplay" src={`${source.src}${source.src.includes('?') ? '&' : '?'}auto_play=true`} referrerPolicy="origin" className="pointer-events-none fixed opacity-0" />
       )}
 
-      {music.enabled && source.kind === 'search' && <SearchFallbackPill query={source.query} />}
+      {shouldMountMedia && source.kind === 'search' && <SearchFallbackPill query={source.query} />}
 
       {showControlPill && (
         <ControlPill
