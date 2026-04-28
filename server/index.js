@@ -55,7 +55,6 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 3001;
 const IS_PROD = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const SLUG_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -578,11 +577,8 @@ async function boot() {
     process.exit(1);
   }
 
-  const server = app.listen(PORT, () => {
-    console.log(
-      `[server] listening on http://localhost:${PORT} (prod=${IS_PROD})`,
-    );
-  });
+  const PORT = process.env.PORT || 3001
+  const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 
   // Anything that could silently stop the process now gets logged.
   server.on('error', (err) => {
