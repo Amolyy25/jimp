@@ -268,13 +268,15 @@ function SocialsForm({ data, onUpdate }) {
                 <span className="text-xs font-semibold">{s.label}</span>
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => toggleAction(s.id)}
-                  className="eyebrow text-discord/80 transition hover:text-discord"
-                >
-                  {action === 'copy' ? 'Action: Copy' : 'Action: Link'}
-                </button>
+                {s.href && (
+                  <button
+                    type="button"
+                    onClick={() => toggleAction(s.id)}
+                    className="eyebrow text-discord/80 transition hover:text-discord"
+                  >
+                    {action === 'copy' ? 'Action: Copy' : 'Action: Link'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => toggleHidden(s.id)}
@@ -676,7 +678,7 @@ function Toggle({ checked, onChange }) {
     >
       <span
         className={[
-          'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
+          'absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
           checked ? 'translate-x-5' : 'translate-x-0.5',
         ].join(' ')}
       />

@@ -105,7 +105,7 @@ export default function StylePanel({ style, onUpdate }) {
           >
             <span
               className={[
-                'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
+                'absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
                 style.autoSize ? 'translate-x-5' : 'translate-x-0.5',
               ].join(' ')}
             />

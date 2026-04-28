@@ -44,7 +44,7 @@ export default function SocialsWidget({ widget, accent }) {
     <div className="flex h-full w-full flex-wrap content-center items-center justify-center gap-3 px-4 py-2">
       {entries.map((s) => {
         const handle = links[s.id];
-        const action = actions[s.id] || (s.copy ? 'copy' : 'link');
+        const action = !s.href ? 'copy' : (actions[s.id] || (s.copy ? 'copy' : 'link'));
         const common = {
           className:
             'group relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] transition duration-300 hover:scale-110',

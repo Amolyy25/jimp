@@ -224,7 +224,7 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
             placeholder="your-name"
             maxLength={30}
             disabled={locked && !slugDirty ? false : false}
-            className="h-11 w-full rounded-xl border border-white/5 bg-white/[0.03] pl-[72px] pr-10 text-sm text-white outline-none transition focus:border-discord/50 focus:bg-white/[0.06] disabled:opacity-50"
+            className="h-11 w-full rounded-xl border border-white/5 bg-white/[0.03] pl-[88px] pr-10 text-sm text-white outline-none transition focus:border-discord/50 focus:bg-white/[0.06] disabled:opacity-50"
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
             <SlugIndicator
