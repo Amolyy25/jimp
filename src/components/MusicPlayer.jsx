@@ -30,10 +30,13 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
   const [volume, setVolume] = useState(music.volume ?? 0.35);
   const [ytMeta, setYtMeta] = useState({ title: '', artist: '' });
 
+  const [ytReady, setYtReady] = useState(false);
+  const musicRef = useRef(music);
+  useEffect(() => { musicRef.current = music; }, [music]);
+
   const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const ytContainerRef = useRef(null);
-  const ytReadyRef = useRef(false);
   const audioCtxRef = useRef(null);
   const audioSourceRef = useRef(null);
   const [analyser, setAnalyser] = useState(null);
@@ -128,7 +131,7 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
     let cancelled = false;
 
     const ensureApi = () =>
-      new Promise((resolve) => {
+      new Promise((resolve, reject) => {
         if (window.YT?.Player) return resolve(window.YT);
         const existing = document.getElementById('yt-iframe-api');
         if (!existing) {
@@ -137,69 +140,70 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
           tag.src = 'https://www.youtube.com/iframe_api';
           document.body.appendChild(tag);
         }
+        let attempts = 0;
         const check = setInterval(() => {
+          attempts++;
           if (window.YT?.Player) {
             clearInterval(check);
             resolve(window.YT);
           }
+          if (attempts > 60) { // 6 seconds
+            clearInterval(check);
+            reject(new Error('YouTube API timeout'));
+          }
         }, 100);
       });
 
-    ensureApi().then((YT) => {
-      if (cancelled || !ytContainerRef.current) return;
-      ytReadyRef.current = false;
-      ytContainerRef.current.innerHTML = '';
-      const host = document.createElement('div');
-      host.id = `yt-host-${Math.random().toString(36).slice(2, 9)}`;
-      ytContainerRef.current.appendChild(host);
+      ensureApi().then((YT) => {
+        if (cancelled || !ytContainerRef.current) return;
+        setYtReady(false);
+        ytContainerRef.current.innerHTML = '';
+        const host = document.createElement('div');
+        host.id = `yt-host-${Math.random().toString(36).slice(2, 9)}`;
+        ytContainerRef.current.appendChild(host);
 
-      ytPlayerRef.current = new YT.Player(host.id, {
-        videoId: source.id,
-        playerVars: {
-          autoplay: music.autoplay ? 1 : 0,
-          controls: 0,
-          disablekb: 1,
-          modestbranding: 1,
-          playsinline: 1,
-          rel: 0,
-          origin: window.location.origin,
-          enablejsapi: 1,
-          widget_referrer: window.location.origin
-        },
-        events: {
-          onReady: (e) => {
-            if (cancelled) return;
-            ytReadyRef.current = true;
-            e.target.setVolume(Math.round(volume * 100));
-            setDuration(e.target.getDuration() || 0);
-            try {
-              const data = e.target.getVideoData();
-              if (data) setYtMeta({ title: data.title, artist: data.author });
-            } catch (err) { }
+        ytPlayerRef.current = new YT.Player(host.id, {
+          videoId: source.id,
+          playerVars: {
+            autoplay: musicRef.current.autoplay ? 1 : 0,
+            controls: 0,
+            disablekb: 1,
+            modestbranding: 1,
+            playsinline: 1,
+            rel: 0,
+            origin: window.location.origin,
+            enablejsapi: 1,
+            widget_referrer: window.location.origin
+          },
+          events: {
+            onReady: (e) => {
+              if (cancelled) return;
+              setYtReady(true);
+              e.target.setVolume(Math.round(volume * 100));
+              setDuration(e.target.getDuration() || 0);
+              try {
+                const data = e.target.getVideoData();
+                if (data) setYtMeta({ title: data.title, artist: data.author });
+              } catch (err) { }
 
-            if (music.autoplay) {
-              // YouTube's playVideo() doesn't return a promise.
-              // We'll call it and then check if it's actually playing after a short delay.
-              setTimeout(() => {
-                if (cancelled) return;
-                try {
-                  e.target.playVideo();
-                } catch (err) {
-                  setNeedsGesture(true);
-                }
-              }, 500);
-
-              setTimeout(() => {
-                if (!cancelled && !playing && ytReadyRef.current) {
-                  const state = ytPlayerRef.current?.getPlayerState();
-                  // state 1 = PLAYING
-                  if (state !== 1) {
+              if (musicRef.current.autoplay) {
+                setTimeout(() => {
+                  if (cancelled) return;
+                  try {
+                    e.target.playVideo();
+                  } catch (err) {
                     setNeedsGesture(true);
                   }
-                }
-              }, 2500);
-            }
-          },
+                }, 500);
+
+                setTimeout(() => {
+                  if (!cancelled && !playing) {
+                    const state = e.target.getPlayerState();
+                    if (state !== 1) setNeedsGesture(true);
+                  }
+                }, 2500);
+              }
+            },
           onStateChange: (e) => {
             if (cancelled) return;
             const YTStates = window.YT.PlayerState;
@@ -223,33 +227,30 @@ export default function MusicPlayer({ music, accent, hideControls, children }) {
       });
     });
 
-    return () => {
-      cancelled = true;
-      try { ytPlayerRef.current?.destroy?.(); } catch { }
-      ytPlayerRef.current = null;
-      ytReadyRef.current = false;
-    };
+      return () => {
+        cancelled = true;
+        try { ytPlayerRef.current?.destroy?.(); } catch { }
+        ytPlayerRef.current = null;
+        setYtReady(false);
+      };
   }, [source.kind, source.id, music.enabled]);
 
   // Handle programmatic autoplay/play for YouTube
   useEffect(() => {
     if (!music.enabled || source.kind !== 'youtube' || !music.autoplay) return;
-    if (!ytReadyRef.current || !ytPlayerRef.current) return;
+    if (!ytReady || !ytPlayerRef.current) return;
 
     try {
       ytPlayerRef.current.playVideo();
-      // If it still hasn't started playing after a bit, the browser might have blocked it
       const check = setTimeout(() => {
         const state = ytPlayerRef.current?.getPlayerState?.();
-        if (state !== 1) { // 1 is PLAYING
-          setNeedsGesture(true);
-        }
+        if (state !== 1) setNeedsGesture(true);
       }, 1000);
       return () => clearTimeout(check);
     } catch (err) {
       setNeedsGesture(true);
     }
-  }, [music.autoplay, music.enabled, source.kind]);
+  }, [music.autoplay, music.enabled, source.kind, ytReady]);
 
   useEffect(() => {
     if (source.kind !== 'youtube') return;
