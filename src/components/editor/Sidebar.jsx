@@ -119,7 +119,7 @@ function GlobalView({
         onChange={onSectionChange}
       />
 
-      <div className="flex-1 space-y-5 overflow-y-auto thin-scroll px-5 py-5">
+      <div className="flex-1 min-h-0 space-y-5 overflow-y-auto thin-scroll px-5 py-5">
         {section === 'widgets' && (
           <WidgetListSection
             profile={profile}
@@ -635,7 +635,7 @@ function WidgetView({ widget, onBack, onRemove, onUpdateData, onUpdateStyle }) {
         onChange={setSection}
       />
 
-      <div className="flex-1 space-y-5 overflow-y-auto thin-scroll px-5 py-5">
+      <div className="flex-1 min-h-0 space-y-5 overflow-y-auto thin-scroll px-5 py-5">
         {section === 'content' && (
           <WidgetPanel widget={widget} onUpdate={onUpdateData} />
         )}
@@ -662,7 +662,7 @@ function SidebarHeader({ title, children }) {
 
 function SectionTabs({ sections, active, onChange }) {
   return (
-    <div className="flex border-b border-white/5 bg-ink-900 px-2">
+    <div className="flex overflow-x-auto scrollbar-hide whitespace-nowrap border-b border-white/5 bg-ink-900 px-2">
       {sections.map((s) => {
         const isActive = s.id === active;
         return (
@@ -671,7 +671,7 @@ function SectionTabs({ sections, active, onChange }) {
             type="button"
             onClick={() => onChange(s.id)}
             className={[
-              'relative flex-1 px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition',
+              'relative shrink-0 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition',
               isActive ? 'text-white' : 'text-white/40 hover:text-white/70',
             ].join(' ')}
           >

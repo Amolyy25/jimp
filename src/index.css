@@ -40,6 +40,14 @@ body {
   background: rgba(255, 255, 255, 0.16);
 }
 
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Utility label — used for small uppercase widget labels */
 .eyebrow {
   text-transform: uppercase;
