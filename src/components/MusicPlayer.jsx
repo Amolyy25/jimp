@@ -100,11 +100,12 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
       el.removeEventListener('pause', onPause);
       el.removeEventListener('play', ensureAnalyser);
     };
-  }, [source.kind, music.src, music.enabled]);
+  }, [source.kind, music.src, shouldMountMedia]);
 
   // Handle programmatic autoplay/play for audio
   useEffect(() => {
-    if (!shouldMountMedia || source.kind !== 'audio' || !music.autoplay) return;
+    if (!music.enabled || source.kind !== 'audio' || !music.autoplay) return;
+    if (!readyToPlay) return;
     const el = audioRef.current;
     if (!el) return;
     
@@ -114,7 +115,7 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
         setPlaying(true);
       })
       .catch(() => setNeedsGesture(true));
-  }, [music.autoplay, music.enabled, source.kind]);
+  }, [music.autoplay, music.enabled, source.kind, readyToPlay]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
@@ -140,7 +141,7 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
 
   // ---------------- YouTube IFrame API ----------------
   useEffect(() => {
-    if (!shouldMountMedia) return;
+    if (!music.enabled) return;
     if (source.kind !== 'youtube') return;
     let cancelled = false;
 
@@ -251,12 +252,12 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
         ytPlayerRef.current = null;
         setYtReady(false);
       };
-  }, [source.kind, source.id, shouldMountMedia]);
+  }, [source.kind, source.id, music.enabled]);
 
   // Handle programmatic autoplay/play for YouTube
   useEffect(() => {
-    if (!shouldMountMedia || source.kind !== 'youtube' || !music.autoplay) return;
-    if (!ytReady || !ytPlayerRef.current) return;
+    if (!music.enabled || source.kind !== 'youtube' || !music.autoplay) return;
+    if (!readyToPlay || !ytReady || !ytPlayerRef.current) return;
 
     try {
       ytPlayerRef.current.playVideo();
@@ -268,7 +269,7 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
     } catch (err) {
       setNeedsGesture(true);
     }
-  }, [music.autoplay, music.enabled, source.kind, ytReady]);
+  }, [music.autoplay, music.enabled, source.kind, ytReady, readyToPlay]);
 
   useEffect(() => {
     if (source.kind !== 'youtube') return;
@@ -346,11 +347,11 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
     <MusicContext.Provider value={ctxValue}>
       {children}
 
-      {shouldMountMedia && source.kind === 'audio' && (
+      {music.enabled && source.kind === 'audio' && (
         <audio ref={audioRef} src={source.src} loop preload="auto" className="hidden" />
       )}
 
-      {shouldMountMedia && source.kind === 'youtube' && (
+      {music.enabled && source.kind === 'youtube' && (
         <div 
           ref={ytContainerRef} 
           aria-hidden 
