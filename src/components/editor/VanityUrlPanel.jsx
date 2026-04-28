@@ -213,7 +213,7 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
 
         <div className="relative">
           <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-white/20">
-            jimp.app/
+            persn.me/
           </div>
           <input
             type="text"
@@ -293,7 +293,7 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
         </h4>
         <div className="flex items-center justify-between gap-2 rounded-lg bg-black/40 p-3">
           <span className="truncate text-xs text-white/60">
-            {canCopy ? shareUrl : 'jimp.app/your-link'}
+            {canCopy ? shareUrl : 'persn.me/your-link'}
           </span>
           <div className="flex gap-1">
             <button
@@ -354,7 +354,7 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
             // listens for it and replaces the current profile after a
             // confirmation step (same flow as Templates).
             window.dispatchEvent(
-              new CustomEvent('jimp:profile-import', { detail: imported }),
+              new CustomEvent('persn:profile-import', { detail: imported }),
             );
             setImportOpen(false);
           }}

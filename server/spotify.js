@@ -14,7 +14,7 @@
  * Required env:
  *   SPOTIFY_CLIENT_ID
  *   SPOTIFY_CLIENT_SECRET
- *   SPOTIFY_REDIRECT_URI     e.g. https://jimp.app/api/spotify/callback
+ *   SPOTIFY_REDIRECT_URI     e.g. https://persn.me/api/spotify/callback
  *   PUBLIC_APP_URL           used for the post-callback redirect (editor)
  */
 

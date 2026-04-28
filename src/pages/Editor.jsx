@@ -20,7 +20,7 @@ import { resolveAccent } from '../utils/theme.js';
 import HistoryDrawer from '../components/editor/HistoryDrawer.jsx';
 import TemplateConfirmModal from '../components/editor/TemplateConfirmModal.jsx';
 
-const STORAGE_KEY = 'jimp:profile';
+const STORAGE_KEY = 'persn:profile';
 const AUTOSAVE_DEBOUNCE_MS = 5000;
 
 /**
@@ -82,8 +82,8 @@ export default function Editor() {
         profile: imported,
       });
     };
-    window.addEventListener('jimp:profile-import', handler);
-    return () => window.removeEventListener('jimp:profile-import', handler);
+    window.addEventListener('persn:profile-import', handler);
+    return () => window.removeEventListener('persn:profile-import', handler);
   }, []);
 
   /* -------------------------------------------------------------------- */
@@ -344,7 +344,7 @@ export default function Editor() {
       {/* Mobile gate */}
       <div className="flex flex-1 items-center justify-center px-8 text-center lg:hidden">
         <div className="max-w-sm">
-          <div className="eyebrow mb-3 text-discord">Jimp Builder</div>
+          <div className="eyebrow mb-3 text-discord">persn.me</div>
           <h1 className="mb-3 text-2xl font-semibold tracking-tight">
             Desktop recommended
           </h1>
@@ -428,10 +428,10 @@ function TopBar({
       <div className="pointer-events-auto flex items-center gap-3">
         <Link to="/" className="flex items-center gap-3 group">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-discord to-indigo-500 font-bold text-white shadow-lg transition group-hover:brightness-110">
-            J
+            P
           </div>
           <div>
-            <div className="text-sm font-semibold tracking-tight">Jimp Builder</div>
+            <div className="text-sm font-semibold tracking-tight">persn.me</div>
             <div className="eyebrow">Profile editor</div>
           </div>
         </Link>

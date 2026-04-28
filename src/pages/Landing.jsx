@@ -96,7 +96,7 @@ function Wordmark() {
           className="relative z-10 text-lg font-black italic text-white"
           style={{ fontFamily: 'Bebas Neue, Inter' }}
         >
-          J
+          P
         </span>
         <span className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
       </div>
@@ -105,7 +105,7 @@ function Wordmark() {
           className="text-xl font-black leading-none tracking-tight"
           style={{ fontFamily: 'Bebas Neue' }}
         >
-          JIMP
+          PERSN.ME
         </span>
         <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-white/30">
           v2.4
@@ -240,7 +240,7 @@ function HeroMockup() {
             <span className="h-2.5 w-2.5 rounded-full bg-white/10" />
           </div>
           <div className="rounded-sm bg-white/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-white/30">
-            jimp.app / amaury
+            persn.me / yourname
           </div>
           <div className="w-[34px]" />
         </div>
@@ -273,7 +273,7 @@ function HeroMockup() {
                   className="text-xl font-black tracking-tight text-white"
                   style={{ fontFamily: 'Bebas Neue' }}
                 >
-                  AMAURY
+                  YOURNAME
                 </span>
                 <span
                   className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wider text-white"
@@ -340,7 +340,7 @@ function HeroMockup() {
           >
             <div className="h-9 w-9 flex-shrink-0 rounded-lg bg-gradient-to-br from-discord to-violet-500" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[11px] font-bold">Jimp HQ</div>
+              <div className="truncate text-[11px] font-bold">persn.me HQ</div>
               <div className="truncate font-mono text-[8px] text-white/40">
                 4.2k members online
               </div>
@@ -455,7 +455,7 @@ function Features() {
       n: '03',
       icon: Globe,
       title: 'VANITY URLS',
-      desc: 'Claim jimp.app/yourname. URL is yours — locked for 7 days after every rename to stop squatting.',
+      desc: 'Claim persn.me/yourname. URL is yours — locked for 7 days after every rename to stop squatting.',
     },
     {
       n: '04',
@@ -559,7 +559,7 @@ function HowItWorks() {
     {
       n: '03',
       title: 'CLAIM & SHIP',
-      desc: 'Sign in, pick your URL, hit claim. You get jimp.app/yourname — locked to your account.',
+      desc: 'Sign in, pick your URL, hit claim. You get persn.me/yourname — locked to your account.',
     },
   ];
 
@@ -719,7 +719,7 @@ function Footer() {
         ))}
       </div>
       <div className="mx-auto mt-12 flex max-w-[1400px] items-center justify-between border-t border-white/5 pt-6 font-mono text-[10px] uppercase tracking-[0.24em] text-white/30">
-        <span>© 2026 Jimp</span>
+        <span>© 2026 persn.me</span>
         <span>All rights reserved</span>
       </div>
     </footer>

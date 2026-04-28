@@ -1,4 +1,4 @@
-// Jimp Builder — Prisma schema.
+// persn.me — Prisma schema.
 // Each user owns exactly one Profile; the profile's slug is the vanity URL.
 // `slugChangedAt` gates the 7-day slug cooldown in the API layer.
 // Spotify tokens are stored per-user so their Spotify OAuth lives independently

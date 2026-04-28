@@ -13,7 +13,9 @@
  * snapshot so the user can keep undo-ing if they regret the restore.
  */
 
-export function registerVersionRoutes(app, prisma, authenticate) {
+export function registerVersionRoutes(app, prisma, authenticate, opts = {}) {
+  const writeLimiter = opts.writeLimiter || ((_req, _res, next) => next());
+
   app.get('/api/profiles/me/versions', authenticate, async (req, res) => {
     const profile = await prisma.profile.findUnique({
       where: { userId: req.user.userId },
@@ -37,7 +39,7 @@ export function registerVersionRoutes(app, prisma, authenticate) {
     res.json({ versions });
   });
 
-  app.post('/api/profiles/me/versions/:id/restore', authenticate, async (req, res) => {
+  app.post('/api/profiles/me/versions/:id/restore', writeLimiter, authenticate, async (req, res) => {
     const profile = await prisma.profile.findUnique({
       where: { userId: req.user.userId },
       select: { id: true, slug: true },

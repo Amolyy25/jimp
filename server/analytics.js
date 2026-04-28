@@ -54,9 +54,11 @@ function getOrSetSessionNonce(req, res) {
   return nonce;
 }
 
-export function registerAnalyticsRoutes(app, prisma, authenticate) {
+export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
+  const ingestLimiter = opts.ingestLimiter || ((_req, _res, next) => next());
+
   // -- Ingest: views ------------------------------------------------------
-  app.post('/api/views', async (req, res) => {
+  app.post('/api/views', ingestLimiter, async (req, res) => {
     const slug = (req.body?.slug || '').toLowerCase();
     if (!slug) return res.json({ ok: false });
     try {
@@ -97,11 +99,15 @@ export function registerAnalyticsRoutes(app, prisma, authenticate) {
   });
 
   // -- Ingest: clicks -----------------------------------------------------
-  app.post('/api/clicks', async (req, res) => {
+  app.post('/api/clicks', ingestLimiter, async (req, res) => {
     const slug = (req.body?.slug || '').toLowerCase();
     const kind = clip(req.body?.kind || 'link', 32);
     const target = clip(req.body?.target || '', 512);
     if (!slug || !target) return res.json({ ok: false });
+    // Reject obviously dangerous click targets — even though this is just
+    // analytics, we don't want to store javascript:/data: URIs that could
+    // get reflected back to the owner's dashboard.
+    if (!/^(https?:\/\/|\/|#)/i.test(target)) return res.json({ ok: false });
     try {
       const profile = await prisma.profile.findUnique({
         where: { slug },

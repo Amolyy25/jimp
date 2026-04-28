@@ -73,9 +73,9 @@ export default function View() {
     if (!profile) return;
     const avatar = profile.widgets?.find((w) => w.type === 'avatar');
     const name = avatar?.data?.username || 'Profile';
-    document.title = `@${name} — Jimp`;
+    document.title = `@${name} — persn.me`;
     return () => {
-      document.title = 'Jimp Builder';
+      document.title = 'persn.me';
     };
   }, [profile]);
 
@@ -90,6 +90,13 @@ export default function View() {
     };
   }, [profile?.theme?.cursor, profile?.theme?.cursorUrl]);
 
+  // While the slug is resolving, show a quiet placeholder rather than the
+  // "empty link" screen — otherwise the user sees the EmptyState flash for
+  // a few hundred ms before the real profile renders. Only commit to
+  // EmptyState once loading is done AND no profile came back.
+  if (loading) {
+    return <ProfileLoading />;
+  }
   if (!profile) {
     return <EmptyState />;
   }
@@ -280,7 +287,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
         </div>
       )}
 
-      <MadeWithJimp />
+      <MadeWithPersn />
     </div>
   );
 }
@@ -292,13 +299,13 @@ function renderWidget(widget, ctx) {
   return <Component widget={widget} {...ctx} />;
 }
 
-/** Tiny brand footer — "Made with Jimp" on the left, "Create yours" CTA on the right. */
-function MadeWithJimp() {
+/** Tiny brand footer — "Made with persn.me" on the left, "Create yours" CTA on the right. */
+function MadeWithPersn() {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 px-5 py-3">
       <div className="pointer-events-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/35">
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-discord" />
-        Made with Jimp
+        Made with persn.me
       </div>
       <Link
         to="/editor"
@@ -322,11 +329,29 @@ function MadeWithJimp() {
   );
 }
 
+/**
+ * Quiet placeholder shown while the profile is being fetched from the API.
+ * Same dark background as EmptyState so there's no flash if the network is
+ * slow — just a small accent dot pulsing in the centre.
+ */
+function ProfileLoading() {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-ink-950"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <span className="sr-only">Loading profile…</span>
+      <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-discord shadow-[0_0_24px_#5865F2]" />
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink-950 px-6 text-center">
       <div className="max-w-md">
-        <div className="eyebrow mb-3 text-discord">Jimp Builder</div>
+        <div className="eyebrow mb-3 text-discord">persn.me</div>
         <h1 className="mb-3 text-3xl font-semibold tracking-tight">
           This link is empty
         </h1>

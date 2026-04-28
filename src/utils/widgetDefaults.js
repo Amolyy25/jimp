@@ -37,7 +37,7 @@ export const WIDGET_CATALOG = {
     defaultSize: { w: 36, h: 32 },
     style: { ...baseStyle(), bgOpacity: 0 },
     data: {
-      avatarUrl: 'https://api.dicebear.com/7.x/thumbs/svg?seed=jimp',
+      avatarUrl: 'https://api.dicebear.com/7.x/thumbs/svg?seed=persn',
       username: 'yourname',
       bio: 'A tiny corner of the internet.',
       pulseWhenPlaying: true,

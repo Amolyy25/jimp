@@ -11,7 +11,7 @@ import { follow, unfollow, getFollowState, getMe } from '../utils/api.js';
  * The guestbook itself lives in its own widget (`GuestbookWidget`); this
  * floating pill is intentionally tiny — it's the social entry point on
  * top of the profile, not a full panel. We sit in the bottom-right above
- * the "Made with Jimp" footer.
+ * the "Made with persn.me" footer.
  */
 export default function GuestbookFloating({ slug, accent }) {
   const [me, setMe] = useState(null);

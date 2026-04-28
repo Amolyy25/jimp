@@ -1,5 +1,5 @@
 /**
- * Import a public Linktree page into a Jimp profile blob.
+ * Import a public Linktree page into a persn.me profile blob.
  *
  * POST /api/import { source: 'linktree', url: 'https://linktr.ee/foo' }
  *   → { ok: true, preview: { username, bio, avatarUrl, links: [{label,url}] } }
@@ -23,8 +23,12 @@ const UA =
 
 const LINKTREE_HOST_RE = /^(linktr\.ee|www\.linktr\.ee)$/i;
 
-export function registerImportRoutes(app) {
-  app.post('/api/import', async (req, res) => {
+export function registerImportRoutes(app, authenticate, opts = {}) {
+  const writeLimiter = opts.writeLimiter || ((_req, _res, next) => next());
+
+  // Authenticated: anonymous traffic shouldn't be able to use our server as
+  // an outbound fetch proxy, even one restricted to linktr.ee.
+  app.post('/api/import', writeLimiter, authenticate, async (req, res) => {
     const { source, url } = req.body || {};
     if (source !== 'linktree') {
       return res.status(400).json({ error: 'Only Linktree is supported for now' });
@@ -35,6 +39,9 @@ export function registerImportRoutes(app) {
       parsed = new URL(url);
     } catch {
       return res.status(400).json({ error: 'Invalid URL' });
+    }
+    if (parsed.protocol !== 'https:') {
+      return res.status(400).json({ error: 'URL must use https' });
     }
     if (!LINKTREE_HOST_RE.test(parsed.host)) {
       return res.status(400).json({ error: 'URL must point to linktr.ee' });

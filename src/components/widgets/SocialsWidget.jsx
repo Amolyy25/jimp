@@ -1,16 +1,22 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { SOCIALS } from '../../utils/socials.jsx';
 
 /**
  * Row of social icons.
  * - Clickable platforms open in a new tab.
- * - Discord handles aren't linkable → clicking copies the tag to clipboard.
+ * - Discord (and any social marked `copy`) copy the handle to the clipboard.
+ *
+ * The "copied" toast is rendered via a portal into <body>, otherwise the
+ * surrounding WidgetFrame's `overflow: hidden` clips it (it sits above the
+ * icon and gets cut). The toast is fixed at the bottom of the viewport so
+ * it never collides with widget edges.
  */
 export default function SocialsWidget({ widget, accent }) {
   const links = widget.data.links || {};
   const hidden = new Set(widget.data.hidden || []);
   const actions = widget.data.actions || {};
-  const [copied, setCopied] = useState(null);
+  const [toast, setToast] = useState(null); // { handle: string }
   const accentColor = accent || '#5865F2';
 
   // Only render socials that the user has filled in.
@@ -24,11 +30,11 @@ export default function SocialsWidget({ widget, accent }) {
     );
   }
 
-  const onCopy = async (handle, id) => {
+  const onCopy = async (handle) => {
     try {
       await navigator.clipboard.writeText(handle);
-      setCopied(id);
-      setTimeout(() => setCopied(null), 1500);
+      setToast({ handle });
+      setTimeout(() => setToast(null), 1800);
     } catch {
       /* ignore */
     }
@@ -62,20 +68,12 @@ export default function SocialsWidget({ widget, accent }) {
               className="pointer-events-none absolute inset-0 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-30"
               style={{ boxShadow: `inset 0 0 0 9999px ${s.color}`, mixBlendMode: 'color' }}
             />
-            {copied === s.id && (
-              <span 
-                className="absolute -top-7 whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold text-white shadow-lg animate-bounce"
-                style={{ backgroundColor: accentColor }}
-              >
-                Copied!
-              </span>
-            )}
           </>
         );
 
         if (action === 'copy') {
           return (
-            <button key={s.id} type="button" onClick={() => onCopy(handle, s.id)} {...common}>
+            <button key={s.id} type="button" onClick={() => onCopy(handle)} {...common}>
               {content}
             </button>
           );
@@ -93,6 +91,37 @@ export default function SocialsWidget({ widget, accent }) {
           </a>
         );
       })}
+
+      {toast && typeof document !== 'undefined' &&
+        createPortal(
+          <CopyToast handle={toast.handle} accentColor={accentColor} />,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+/**
+ * Fixed bottom-of-viewport toast. Rendered through a portal so it escapes
+ * the widget's overflow-hidden frame and never gets clipped — regardless of
+ * where the social pill lives on the canvas.
+ */
+function CopyToast({ handle, accentColor }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4"
+    >
+      <div
+        className="pointer-events-auto flex max-w-[90vw] items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white shadow-2xl backdrop-blur-md"
+        style={{ backgroundColor: accentColor }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          <path d="M5 12l5 5L20 7" />
+        </svg>
+        <span className="truncate">{handle} copié</span>
+      </div>
     </div>
   );
 }

@@ -111,7 +111,7 @@ export default function SplashScreen({
 
           {/* Tiny footer — made-with signature works on the gate too */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 font-mono text-[10px] uppercase tracking-[0.24em] text-white/20">
-            made with jimp
+            made with persn.me
           </div>
         </motion.div>
       )}

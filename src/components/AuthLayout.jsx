@@ -60,7 +60,7 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
         </motion.div>
 
         <p className="absolute bottom-6 left-1/2 -translate-x-1/2 font-mono text-[10px] uppercase tracking-[0.24em] text-white/20">
-          © 2026 Jimp / Built in France
+          © 2026 persn.me / Built in France
         </p>
       </main>
     </div>
@@ -128,7 +128,7 @@ function BrandPane() {
               className="relative z-10 text-lg font-black italic text-white"
               style={{ fontFamily: 'Bebas Neue, Inter' }}
             >
-              J
+              P
             </span>
             <span className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
           </div>
@@ -136,7 +136,7 @@ function BrandPane() {
             className="text-2xl font-black leading-none tracking-tight"
             style={{ fontFamily: 'Bebas Neue' }}
           >
-            JIMP
+            PERSN.ME
           </span>
           <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-white/30">
             v2.4
@@ -180,7 +180,7 @@ function BrandPane() {
                 </span>
               </div>
               <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-white/30">
-                jimp.stats
+                persn.stats
               </span>
             </div>
             <div className="relative h-[68px] overflow-hidden px-4 py-3">

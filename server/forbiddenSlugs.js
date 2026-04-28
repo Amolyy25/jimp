@@ -6,7 +6,8 @@ export const FORBIDDEN_SLUGS = new Set([
   // System / Reserved
   'admin', 'administrator', 'api', 'auth', 'login', 'logout', 'register', 'signup',
   'signin', 'signout', 'profile', 'profiles', 'user', 'users', 'settings', 'config',
-  'dashboard', 'editor', 'edit', 'view', 'jimp', 'help', 'support', 'contact',
+  'dashboard', 'editor', 'edit', 'view', 'persn', 'persnme', 'persn-me',
+  'help', 'support', 'contact',
   'about', 'terms', 'privacy', 'legal', 'docs', 'documentation', 'blog', 'news',
   'status', 'health', 'metrics', 'static', 'assets', 'public', 'images', 'uploads',
   'download', 'app', 'web', 'mobile', 'dev', 'developer', 'staging', 'prod',

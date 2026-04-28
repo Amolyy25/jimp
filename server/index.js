@@ -1,5 +1,5 @@
 /**
- * Jimp Builder API + SPA host.
+ * persn.me API + SPA host.
  *
  * In development this runs on its own port (3001 by default) and talks to
  * the Vite dev server through CORS. In production the same process serves
@@ -38,6 +38,15 @@ import { registerQrRoutes } from './qr.js';
 import { registerAnalyticsRoutes } from './analytics.js';
 import { registerVersionRoutes } from './versions.js';
 import { registerSocialRoutes } from './social.js';
+import { createRateLimiter } from './rateLimit.js';
+import { securityHeaders } from './securityHeaders.js';
+import { hasProfanity, findProfanityInObject } from './profanity.js';
+import {
+  isEmail,
+  isUsername,
+  isStrongEnoughPassword,
+  approxJsonBytes,
+} from './validate.js';
 
 const { PrismaClient } = pkg;
 
@@ -51,6 +60,7 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const SLUG_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const PROFILE_MAX_BYTES = 512 * 1024; // 512 KB cap per profile blob
 
 /* -------------------------------------------------------------------------- */
 /* Process-level diagnostics                                                   */
@@ -94,9 +104,19 @@ if (IS_PROD && JWT_SECRET === 'dev-secret-change-me') {
 const app = express();
 const prisma = new PrismaClient();
 
+// Behind Railway / Cloudflare we sit one hop deep. Trusting one proxy lets
+// Express resolve req.ip from X-Forwarded-For correctly without opening us
+// up to header spoofing from arbitrary clients.
+app.set('trust proxy', 1);
+// Hide the default "X-Powered-By: Express" fingerprint.
+app.disable('x-powered-by');
+
 /* -------------------------------------------------------------------------- */
 /* Middleware                                                                 */
 /* -------------------------------------------------------------------------- */
+
+// Security headers — applied to every response (API + SPA shell).
+app.use(securityHeaders);
 
 // In dev we allow localhost:5173. In prod we accept same-origin requests and
 // any origins listed in CORS_ORIGINS (comma-separated) so custom domains work.
@@ -112,8 +132,44 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: '10mb' })); // profile JSON can get chunky
+// 1 MB is enough for any legitimate profile blob; the per-route check below
+// enforces a tighter cap on the actual profile payload.
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+
+/* -------------------------------------------------------------------------- */
+/* Rate limiters                                                               */
+/* -------------------------------------------------------------------------- */
+// Pre-built buckets — one strict for auth, one moderate for write endpoints,
+// one relaxed for everything else. Applied per-route below.
+
+const apiLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 120,
+  bucket: 'api',
+  message: 'Too many requests. Slow down.',
+});
+const authLimiter = createRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 20,
+  bucket: 'auth',
+  message: 'Too many auth attempts. Try again later.',
+});
+const writeLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  bucket: 'write',
+  message: 'Too many write requests. Slow down.',
+});
+const ingestLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 200,
+  bucket: 'ingest',
+  message: 'Too many analytics events.',
+});
+
+// Apply the global limiter to /api/* (skips static assets + SPA fallback).
+app.use('/api/', apiLimiter);
 
 /**
  * JWT auth middleware — reads the `token` cookie set at login/register.
@@ -162,18 +218,32 @@ app.get('/api/health', (_req, res) => {
 /* Auth                                                                        */
 /* -------------------------------------------------------------------------- */
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { username, email, password } = req.body || {};
   if (!username || !email || !password) {
     return res.status(400).json({ error: 'Missing fields' });
   }
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (!isUsername(username)) {
+    return res.status(400).json({
+      error: 'Username must be 2–30 characters (letters, digits, dot, dash, underscore).',
+    });
+  }
+  if (!isEmail(email)) {
+    return res.status(400).json({ error: 'Invalid email address' });
+  }
+  if (!isStrongEnoughPassword(password)) {
+    return res.status(400).json({
+      error: 'Password must be 8–128 characters',
+    });
+  }
+  if (hasProfanity(username)) {
+    return res.status(400).json({ error: 'Username contains forbidden words' });
   }
   try {
+    const normalizedEmail = String(email).trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { username, email, password: hashedPassword },
+      data: { username: String(username).trim(), email: normalizedEmail, password: hashedPassword },
     });
     issueSession(res, user);
     res.json({ user: publicUser(user) });
@@ -186,13 +256,17 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password) {
+  if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'Missing credentials' });
   }
+  if (!isEmail(email) || password.length > 128) {
+    // Same generic error as a wrong password — don't leak that the email is malformed.
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -273,7 +347,7 @@ app.get('/api/profiles/:slug', async (req, res) => {
 
 // Create or update the current user's profile.
 // Slug changes are gated by a 7-day cooldown measured from `slugChangedAt`.
-app.post('/api/profiles', authenticate, async (req, res) => {
+app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
   const { slug, data } = req.body || {};
   const userId = req.user.userId;
 
@@ -289,6 +363,26 @@ app.post('/api/profiles', authenticate, async (req, res) => {
   }
   if (isSlugForbidden(normalizedSlug)) {
     return res.status(400).json({ error: 'This slug is reserved or not allowed' });
+  }
+
+  if (!data || typeof data !== 'object') {
+    return res.status(400).json({ error: 'Profile data is required' });
+  }
+  // Reject oversized blobs early — protects DB from runaway payloads.
+  const size = approxJsonBytes(data);
+  if (size > PROFILE_MAX_BYTES) {
+    return res.status(413).json({
+      error: `Profile is too large (${size} bytes; max ${PROFILE_MAX_BYTES})`,
+    });
+  }
+  // Walk strings inside the profile blob looking for blocked terms. We
+  // reject the whole save rather than trying to mask deeply nested fields —
+  // the user can fix the offending widget and resubmit.
+  const offending = findProfanityInObject(data);
+  if (offending) {
+    return res.status(400).json({
+      error: 'Your profile contains forbidden words. Please remove them and try again.',
+    });
   }
 
   // Sanitize the optional power-user custom CSS before it touches the DB.
@@ -397,11 +491,11 @@ registerSpotifyRoutes(app, prisma, authenticate);
 /* -------------------------------------------------------------------------- */
 
 registerTwitchRoutes(app);
-registerImportRoutes(app);
+registerImportRoutes(app, authenticate, { writeLimiter });
 registerQrRoutes(app, prisma);
-registerAnalyticsRoutes(app, prisma, authenticate);
-registerVersionRoutes(app, prisma, authenticate);
-registerSocialRoutes(app, prisma, authenticate);
+registerAnalyticsRoutes(app, prisma, authenticate, { ingestLimiter });
+registerVersionRoutes(app, prisma, authenticate, { writeLimiter });
+registerSocialRoutes(app, prisma, authenticate, { writeLimiter });
 
 app.get('/api/check-slug/:slug', async (req, res) => {
   const slug = (req.params.slug || '').toLowerCase();
@@ -541,18 +635,18 @@ boot().catch((err) => {
 function injectProfileMeta(html, slug, data, req) {
   const avatar = data.widgets?.find((w) => w.type === 'avatar');
   const username = avatar?.data?.username || slug;
-  const bio = avatar?.data?.bio || `${username} on Jimp.`;
+  const bio = avatar?.data?.bio || `${username} on persn.me.`;
 
   const origin = publicOrigin(req);
   const url = `${origin}/${slug}`;
   const ogImage = `${origin}/api/og/${slug}`;
 
   const tags = [
-    `<title>@${escapeHtml(username)} — Jimp</title>`,
+    `<title>@${escapeHtml(username)} — persn.me</title>`,
     `<meta name="description" content="${escapeHtml(bio)}" />`,
     `<link rel="canonical" href="${url}" />`,
     `<meta property="og:type" content="profile" />`,
-    `<meta property="og:site_name" content="Jimp" />`,
+    `<meta property="og:site_name" content="persn.me" />`,
     `<meta property="og:title" content="@${escapeHtml(username)}" />`,
     `<meta property="og:description" content="${escapeHtml(bio)}" />`,
     `<meta property="og:url" content="${url}" />`,
@@ -560,7 +654,7 @@ function injectProfileMeta(html, slug, data, req) {
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
-    `<meta name="twitter:title" content="@${escapeHtml(username)} — Jimp" />`,
+    `<meta name="twitter:title" content="@${escapeHtml(username)} — persn.me" />`,
     `<meta name="twitter:description" content="${escapeHtml(bio)}" />`,
     `<meta name="twitter:image" content="${ogImage}" />`,
     // Discord uses og:image but also respects a theme colour hint.

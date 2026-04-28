@@ -2,7 +2,7 @@
  * QR endpoints — `GET /api/qr/:slug.png` and `.svg`.
  *
  * The URL encoded into the QR is `https://<host>/<slug>` (using whatever the
- * incoming request thinks the host is, so it works on both jimp.app and
+ * incoming request thinks the host is, so it works on both persn.me and
  * preview deployments). Output is cached in-memory with a short TTL since
  * regenerating is cheap but pages embed the image inside a modal that the
  * user might open repeatedly.

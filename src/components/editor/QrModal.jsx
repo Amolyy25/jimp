@@ -44,7 +44,7 @@ export default function QrModal({ slug, onClose }) {
         <div className="eyebrow text-discord">QR code</div>
         <h2 className="mt-1 text-lg font-bold tracking-tight">Scan to open your profile</h2>
         <p className="mt-1 text-xs text-white/50">
-          jimp.app/{slug}
+          persn.me/{slug}
         </p>
 
         <div className="mt-4 flex aspect-square w-full items-center justify-center rounded-xl bg-white p-6">
@@ -63,7 +63,7 @@ export default function QrModal({ slug, onClose }) {
         <div className="mt-4 flex gap-2">
           <a
             href={pngUrl}
-            download={`jimp-${slug}.png`}
+            download={`persn-${slug}.png`}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-discord py-2.5 text-xs font-semibold text-white shadow-[0_0_30px_rgba(88,101,242,0.35)] transition hover:brightness-110"
           >
             <Download className="h-3.5 w-3.5" />
@@ -71,7 +71,7 @@ export default function QrModal({ slug, onClose }) {
           </a>
           <a
             href={svgUrl}
-            download={`jimp-${slug}.svg`}
+            download={`persn-${slug}.svg`}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2.5 text-xs font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
           >
             <Download className="h-3.5 w-3.5" />

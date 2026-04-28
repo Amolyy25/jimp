@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
  * on their own device. It's here for the aesthetic, not for real analytics.
  */
 export default function VisitorCounterWidget({ widget }) {
-  const key = `jimp:visits:${widget.data.storageKey || 'default'}`;
+  const key = `persn:visits:${widget.data.storageKey || 'default'}`;
   const [count, setCount] = useState(() => readCount(key));
 
   useEffect(() => {

@@ -7,8 +7,8 @@ import { SOCIALS } from '../../utils/socials.jsx';
 /**
  * "Import from Linktree" — paste a linktr.ee URL, server scrapes it, we
  * preview what would be imported (avatar, bio, links classified by
- * platform), the user confirms, and the resulting Jimp profile blob is
- * dispatched to Editor.jsx via a `jimp:profile-import` CustomEvent.
+ * platform), the user confirms, and the resulting persn.me profile blob is
+ * dispatched to Editor.jsx via a `persn:profile-import` CustomEvent.
  *
  * We don't perform the overwrite ourselves — Editor.jsx adds a confirm step
  * (same flow as templates) so users have one last chance to back out.

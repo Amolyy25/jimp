@@ -15,44 +15,16 @@
  * so the user gets immediate feedback without losing their typing.
  */
 
+import { maskProfanity } from './profanity.js';
+
 const GUESTBOOK_MAX_LEN = 240;
 
-const BLOCKED_WORDS = [
-  'negro','negre','nigger','nigga','bougnoule','bicot','rebeu','chink','jap',
-  'faggot','pd','pede','tapette',
-  'pute','putain','salope','connard','enculé','encule','fdp',
-  'bitch','whore','slut','cunt','motherfucker',
-  'viol','rape',
-];
+export function registerSocialRoutes(app, prisma, authenticate, opts = {}) {
+  const writeLimiter = opts.writeLimiter || ((_req, _res, next) => next());
 
-function normalize(s) {
-  return s.toLowerCase()
-    .replace(/[0]/g, 'o')
-    .replace(/[1!]/g, 'i')
-    .replace(/[3]/g, 'e')
-    .replace(/[4@]/g, 'a')
-    .replace(/[5$]/g, 's')
-    .replace(/[7]/g, 't');
-}
-
-function maskProfanity(message) {
-  let out = String(message).slice(0, GUESTBOOK_MAX_LEN);
-  const norm = normalize(out);
-  for (const word of BLOCKED_WORDS) {
-    if (new RegExp(`(?:^|[^a-z])${word}(?:$|[^a-z])`, 'i').test(norm)) {
-      // Replace any character span that normalizes to the banned token.
-      // Simple substring replace works for our small list.
-      const re = new RegExp(word, 'gi');
-      out = out.replace(re, '*'.repeat(word.length));
-    }
-  }
-  return out.trim();
-}
-
-export function registerSocialRoutes(app, prisma, authenticate) {
   /* -------- Follows -------- */
 
-  app.post('/api/follow/:slug', authenticate, async (req, res) => {
+  app.post('/api/follow/:slug', writeLimiter, authenticate, async (req, res) => {
     const slug = req.params.slug.toLowerCase();
     const target = await prisma.profile.findUnique({
       where: { slug },
@@ -81,7 +53,7 @@ export function registerSocialRoutes(app, prisma, authenticate) {
     res.json({ ok: true, following: true, count });
   });
 
-  app.delete('/api/follow/:slug', authenticate, async (req, res) => {
+  app.delete('/api/follow/:slug', writeLimiter, authenticate, async (req, res) => {
     const slug = req.params.slug.toLowerCase();
     const target = await prisma.profile.findUnique({
       where: { slug },
@@ -177,9 +149,14 @@ export function registerSocialRoutes(app, prisma, authenticate) {
     });
   });
 
-  app.post('/api/guestbook/:slug', authenticate, async (req, res) => {
+  app.post('/api/guestbook/:slug', writeLimiter, authenticate, async (req, res) => {
     const slug = req.params.slug.toLowerCase();
-    const message = maskProfanity(req.body?.message || '');
+    const raw = String(req.body?.message || '').trim();
+    if (!raw) return res.status(400).json({ error: 'Empty message' });
+    if (raw.length > GUESTBOOK_MAX_LEN) {
+      return res.status(400).json({ error: `Message too long (max ${GUESTBOOK_MAX_LEN})` });
+    }
+    const message = maskProfanity(raw, GUESTBOOK_MAX_LEN);
     if (!message) return res.status(400).json({ error: 'Empty message' });
 
     const profile = await prisma.profile.findUnique({
@@ -211,7 +188,7 @@ export function registerSocialRoutes(app, prisma, authenticate) {
     });
   });
 
-  app.delete('/api/guestbook/:slug/:entryId', authenticate, async (req, res) => {
+  app.delete('/api/guestbook/:slug/:entryId', writeLimiter, authenticate, async (req, res) => {
     const slug = req.params.slug.toLowerCase();
     const profile = await prisma.profile.findUnique({
       where: { slug },
