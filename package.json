@@ -15,7 +15,9 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:resolve": "prisma migrate resolve",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "admin:grant": "node scripts/grant-admin.js",
+    "admin:revoke": "node scripts/grant-admin.js --revoke"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.99",

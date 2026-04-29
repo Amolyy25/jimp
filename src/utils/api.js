@@ -158,6 +158,23 @@ export async function getMyAnalytics(days = 7) {
   }
 }
 
+/* -------- Admin -------- */
+
+/**
+ * Fetches the admin dashboard payload. Returns null on 401/403 so the
+ * caller (a route guard) can redirect without rendering data.
+ */
+export async function getAdminStats() {
+  try {
+    const { data } = await api.get('/admin/stats');
+    return data;
+  } catch (err) {
+    const status = err.response?.status;
+    if (status === 401 || status === 403) return null;
+    throw err;
+  }
+}
+
 /* -------- Versions -------- */
 
 export async function listMyVersions() {

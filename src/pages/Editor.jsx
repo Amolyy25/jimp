@@ -574,6 +574,7 @@ function formatRelative(date) {
 
 function AccountChip({ user, onLogout }) {
   const initial = user.username?.charAt(0).toUpperCase() || '?';
+  const isAdmin = user.role === 'ADMIN';
   return (
     <div className="group relative">
       <button
@@ -587,7 +588,20 @@ function AccountChip({ user, onLogout }) {
         <div className="px-3 py-2">
           <div className="truncate text-[11px] font-semibold">{user.username}</div>
           <div className="truncate text-[10px] text-white/40">{user.email}</div>
+          {isAdmin && (
+            <div className="mt-1 inline-block rounded-sm bg-discord/15 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.2em] text-discord">
+              admin
+            </div>
+          )}
         </div>
+        {isAdmin && (
+          <Link
+            to="/analytique"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[11px] font-medium text-white/70 transition hover:bg-white/5 hover:text-white"
+          >
+            Analytique
+          </Link>
+        )}
         <button
           type="button"
           onClick={onLogout}

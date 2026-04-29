@@ -38,6 +38,7 @@ import { registerQrRoutes } from './qr.js';
 import { registerAnalyticsRoutes } from './analytics.js';
 import { registerVersionRoutes } from './versions.js';
 import { registerSocialRoutes } from './social.js';
+import { registerAdminRoutes } from './admin.js';
 import { createRateLimiter } from './rateLimit.js';
 import { securityHeaders } from './securityHeaders.js';
 import { hasProfanity, findProfanityInObject } from './profanity.js';
@@ -201,7 +202,12 @@ function issueSession(res, user) {
 }
 
 function publicUser(user) {
-  return { id: user.id, username: user.username, email: user.email };
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role || 'USER',
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -495,6 +501,7 @@ registerQrRoutes(app, prisma);
 registerAnalyticsRoutes(app, prisma, authenticate, { ingestLimiter });
 registerVersionRoutes(app, prisma, authenticate, { writeLimiter });
 registerSocialRoutes(app, prisma, authenticate, { writeLimiter });
+registerAdminRoutes(app, prisma, authenticate);
 
 app.get('/api/check-slug/:slug', async (req, res) => {
   const slug = (req.params.slug || '').toLowerCase();
