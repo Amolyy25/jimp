@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { WIDGET_CATALOG } from '../../utils/widgetDefaults.js';
 import WidgetPanel from './WidgetPanel.jsx';
 import StylePanel from './StylePanel.jsx';
@@ -661,8 +661,26 @@ function SidebarHeader({ title, children }) {
 }
 
 function SectionTabs({ sections, active, onChange }) {
+  const scrollRef = useRef(null);
+
+  // Mice only emit `deltaY` on a vertical wheel, so a horizontal overflow
+  // container ignores them by default. Translate vertical wheel into
+  // horizontal scroll so users on a mouse can reach offscreen tabs.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (e.deltaY === 0) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   return (
-    <div className="flex overflow-x-auto scrollbar-hide whitespace-nowrap border-b border-white/5 bg-ink-900 px-2">
+    <div ref={scrollRef} className="flex overflow-x-auto scrollbar-hide whitespace-nowrap border-b border-white/5 bg-ink-900 px-2">
       {sections.map((s) => {
         const isActive = s.id === active;
         return (
