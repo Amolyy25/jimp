@@ -206,21 +206,12 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
               } catch (err) { }
 
               if (musicRef.current.autoplay) {
+                try { e.target.playVideo(); } catch (err) { /* ignore */ }
                 setTimeout(() => {
                   if (cancelled) return;
-                  try {
-                    e.target.playVideo();
-                  } catch (err) {
-                    setNeedsGesture(true);
-                  }
-                }, 500);
-
-                setTimeout(() => {
-                  if (!cancelled && !playing) {
-                    const state = e.target.getPlayerState();
-                    if (state !== 1) setNeedsGesture(true);
-                  }
-                }, 2500);
+                  const state = e.target.getPlayerState?.();
+                  if (state !== 1) setNeedsGesture(true);
+                }, 800);
               }
             },
           onStateChange: (e) => {
@@ -271,28 +262,32 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
     }
   }, [music.autoplay, music.enabled, source.kind, ytReady, readyToPlay]);
 
-  // Browser autoplay policy fallback: if .play() was blocked, the very next
-  // user interaction anywhere on the page (click, scroll, key, touch) counts
-  // as a gesture and unblocks playback. Without this the visitor has to find
-  // and click the "Play music" pill — which defeats the point of autoplay.
+  // Browser autoplay policy fallback. Install gesture listeners *immediately*
+  // when autoplay is desired — not after .play() has been rejected. The YT
+  // iframe API can take a few seconds to load; if the visitor clicks during
+  // that window we want to capture that gesture and trigger play the moment
+  // the player is ready, rather than waiting for the rejection → needsGesture
+  // → install listener cycle (which costs several seconds).
   useEffect(() => {
-    if (!needsGesture) return;
     if (!shouldMountMedia) return;
     if (!music.autoplay) return;
     if (source.kind !== 'audio' && source.kind !== 'youtube') return;
 
-    const events = ['pointerdown', 'keydown', 'touchstart', 'scroll', 'wheel'];
+    const events = ['pointerdown', 'keydown', 'touchstart', 'click'];
     const tryPlay = () => {
-      events.forEach((ev) => window.removeEventListener(ev, tryPlay, true));
-      if (source.kind === 'audio') {
-        audioRef.current?.play()
-          .then(() => setNeedsGesture(false))
-          .catch(() => {});
+      if (source.kind === 'audio' && audioRef.current) {
+        audioRef.current.play()
+          .then(() => {
+            setNeedsGesture(false);
+            events.forEach((ev) => window.removeEventListener(ev, tryPlay, true));
+          })
+          .catch(() => { /* still blocked — keep listening */ });
       } else if (source.kind === 'youtube' && ytPlayerRef.current) {
         try {
           ytPlayerRef.current.playVideo();
           setNeedsGesture(false);
-        } catch { /* ignore */ }
+          events.forEach((ev) => window.removeEventListener(ev, tryPlay, true));
+        } catch { /* player not ready yet — keep listening */ }
       }
     };
     events.forEach((ev) => {
@@ -301,7 +296,7 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
     return () => {
       events.forEach((ev) => window.removeEventListener(ev, tryPlay, true));
     };
-  }, [needsGesture, shouldMountMedia, music.autoplay, source.kind, ytReady]);
+  }, [shouldMountMedia, music.autoplay, source.kind, ytReady]);
 
   useEffect(() => {
     if (source.kind !== 'youtube') return;
