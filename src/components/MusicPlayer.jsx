@@ -271,6 +271,38 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
     }
   }, [music.autoplay, music.enabled, source.kind, ytReady, readyToPlay]);
 
+  // Browser autoplay policy fallback: if .play() was blocked, the very next
+  // user interaction anywhere on the page (click, scroll, key, touch) counts
+  // as a gesture and unblocks playback. Without this the visitor has to find
+  // and click the "Play music" pill — which defeats the point of autoplay.
+  useEffect(() => {
+    if (!needsGesture) return;
+    if (!shouldMountMedia) return;
+    if (!music.autoplay) return;
+    if (source.kind !== 'audio' && source.kind !== 'youtube') return;
+
+    const events = ['pointerdown', 'keydown', 'touchstart', 'scroll', 'wheel'];
+    const tryPlay = () => {
+      events.forEach((ev) => window.removeEventListener(ev, tryPlay, true));
+      if (source.kind === 'audio') {
+        audioRef.current?.play()
+          .then(() => setNeedsGesture(false))
+          .catch(() => {});
+      } else if (source.kind === 'youtube' && ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.playVideo();
+          setNeedsGesture(false);
+        } catch { /* ignore */ }
+      }
+    };
+    events.forEach((ev) => {
+      window.addEventListener(ev, tryPlay, { capture: true, passive: true });
+    });
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, tryPlay, true));
+    };
+  }, [needsGesture, shouldMountMedia, music.autoplay, source.kind, ytReady]);
+
   useEffect(() => {
     if (source.kind !== 'youtube') return;
     const id = setInterval(() => {
