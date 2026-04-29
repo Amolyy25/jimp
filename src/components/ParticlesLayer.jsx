@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
  *   - stars      static twinkling
  *   - dust       drifting slow dots, airy
  *   - confetti   colourful rectangles falling & rotating
- *
+ * et ouiii
  * ~80–140 particles on a 1080p screen — plenty of density without trashing
  * the GPU. We respect prefers-reduced-motion and auto-disable.
  */
