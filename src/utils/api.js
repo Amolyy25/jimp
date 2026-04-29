@@ -104,6 +104,29 @@ export async function saveProfile(slug, profileData) {
   }
 }
 
+/* -------- Discord OAuth -------- */
+
+/** Absolute URL to kick off Discord sign-in / sign-up. */
+export function discordConnectUrl() {
+  const base = api.defaults.baseURL.startsWith('http')
+    ? api.defaults.baseURL
+    : window.location.origin + api.defaults.baseURL;
+  return `${base}/auth/discord`;
+}
+
+/**
+ * Returns { discordId, username, avatarUrl } for the linked Discord account,
+ * or `null` if the caller hasn't linked Discord (or isn't authenticated).
+ */
+export async function getDiscordImport() {
+  try {
+    const { data } = await api.get('/auth/discord/import');
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 /* -------- Spotify -------- */
 
 export async function getSpotifyStatus() {

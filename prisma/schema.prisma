@@ -22,7 +22,9 @@ model User {
   id                  String    @id @default(cuid())
   username            String    @unique
   email               String    @unique
-  password            String
+  // Optional — users who registered exclusively via Discord OAuth do not
+  // have a local password. They sign in via the Discord button instead.
+  password            String?
   role                Role      @default(USER)
   createdAt           DateTime  @default(now())
 
@@ -31,6 +33,12 @@ model User {
   spotifyAccessToken  String?
   spotifyRefreshToken String?
   spotifyExpiresAt    DateTime?
+
+  // Discord — set when the user has linked or registered through Discord
+  // OAuth. `discordAvatar` is the avatar hash; the CDN URL is built on read.
+  discordId           String?   @unique
+  discordUsername     String?
+  discordAvatar       String?
 
   profile             Profile?
 

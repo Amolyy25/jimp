@@ -15,7 +15,7 @@ import {
   makeWidgetInstance,
 } from '../utils/widgetDefaults.js';
 import { encodeProfile } from '../utils/encode.js';
-import { getMe, getMyProfile, logout, saveProfile } from '../utils/api.js';
+import { getDiscordImport, getMe, getMyProfile, logout, saveProfile } from '../utils/api.js';
 import { resolveAccent } from '../utils/theme.js';
 import HistoryDrawer from '../components/editor/HistoryDrawer.jsx';
 import TemplateConfirmModal from '../components/editor/TemplateConfirmModal.jsx';
@@ -117,6 +117,72 @@ export default function Editor() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* -------------------------------------------------------------------- */
+  /* Discord OAuth post-callback — auto-import avatar on first sign-up,    */
+  /* offer to refresh on subsequent connect.                                */
+  /* -------------------------------------------------------------------- */
+  useEffect(() => {
+    if (!hydrated) return;
+    const params = new URLSearchParams(window.location.search);
+    const flag = params.get('discord');
+    if (flag !== 'registered' && flag !== 'connected') return;
+
+    let cancelled = false;
+    (async () => {
+      const data = await getDiscordImport();
+      if (cancelled || !data?.avatarUrl) return;
+
+      setProfile((prev) => ({
+        ...prev,
+        widgets: prev.widgets.map((w) => {
+          if (w.type !== 'avatar') return w;
+          // On first sign-up: replace the placeholder avatar + username.
+          // On reconnect of an existing account: only fill fields that still
+          // hold the catalog default, so we don't blow away custom edits.
+          const isPlaceholderAvatar =
+            !w.data?.avatarUrl ||
+            String(w.data.avatarUrl).includes('api.dicebear.com');
+          const isPlaceholderUsername =
+            !w.data?.username || w.data.username === 'yourname';
+          const shouldOverwrite = flag === 'registered';
+          return {
+            ...w,
+            data: {
+              ...w.data,
+              avatarUrl:
+                shouldOverwrite || isPlaceholderAvatar
+                  ? data.avatarUrl
+                  : w.data.avatarUrl,
+              username:
+                shouldOverwrite || isPlaceholderUsername
+                  ? data.username
+                  : w.data.username,
+            },
+          };
+        }),
+      }));
+      setToast({
+        kind: 'success',
+        message:
+          flag === 'registered'
+            ? 'Welcome! Your Discord avatar was imported.'
+            : 'Discord avatar refreshed.',
+      });
+      setTimeout(() => {
+        if (!cancelled) setToast(null);
+      }, 4000);
+    })();
+
+    // Clean the query so a refresh doesn't re-import.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('discord');
+    window.history.replaceState({}, '', url.pathname + url.search);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, setProfile]);
 
   /* -------------------------------------------------------------------- */
   /* Auto-save — debounced, full-profile POST                              */

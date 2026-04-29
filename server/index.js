@@ -31,6 +31,7 @@ import pkg from '@prisma/client';
 import { isSlugForbidden } from './forbiddenSlugs.js';
 import { renderProfileOg, invalidateOgCache } from './og.js';
 import { registerSpotifyRoutes } from './spotify.js';
+import { registerDiscordAuthRoutes } from './discordAuth.js';
 import { sanitizeCustomCss } from './sanitizeCss.js';
 import { registerTwitchRoutes } from './twitch.js';
 import { registerImportRoutes } from './importLinktree.js';
@@ -272,7 +273,9 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
   }
   try {
     const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
+      // No `password` is set on Discord-only accounts — treat the same as a
+      // wrong password so we don't leak which accounts exist.
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     issueSession(res, user);
@@ -490,6 +493,7 @@ app.get('/api/og/:slug', async (req, res) => {
 /* -------------------------------------------------------------------------- */
 
 registerSpotifyRoutes(app, prisma, authenticate);
+registerDiscordAuthRoutes(app, prisma, authenticate, { issueSession });
 
 /* -------------------------------------------------------------------------- */
 /* Other feature routes                                                        */

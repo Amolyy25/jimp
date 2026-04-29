@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowUpRight, Loader2, AtSign, Eye, EyeOff, Check } from 'lucide-react';
 import AuthLayout from '../components/AuthLayout.jsx';
-import { Field, ErrorBanner } from './Login.jsx';
+import { Field, ErrorBanner, DiscordButton, Divider } from './Login.jsx';
 import { register } from '../utils/api.js';
 
 export default function Register() {
@@ -43,6 +43,9 @@ export default function Register() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && <ErrorBanner>{error}</ErrorBanner>}
+
+        <DiscordButton label="Sign up with Discord" />
+        <Divider />
 
         <Field
           label="Username"
