@@ -1,7 +1,7 @@
 import ColorInput from './controls/ColorInput.jsx';
 import SliderInput from './controls/SliderInput.jsx';
 import TextInput from './controls/TextInput.jsx';
-import { Image, Clapperboard, Youtube, Ghost } from 'lucide-react';
+import { Image, Video, Play, Ghost } from 'lucide-react';
 
 export default function BackgroundPanel({ background, onChange }) {
   const mode = background?.type || 'none';
@@ -12,8 +12,8 @@ export default function BackgroundPanel({ background, onChange }) {
         {[
           { id: 'none', label: 'Aucun', icon: Ghost },
           { id: 'image', label: 'Image', icon: Image },
-          { id: 'video', label: 'Vidéo', icon: Clapperboard },
-          { id: 'youtube', label: 'YouTube', icon: Youtube },
+          { id: 'video', label: 'Vidéo', icon: Video },
+          { id: 'youtube', label: 'YouTube', icon: Play },
         ].map((opt) => (
           <button
             key={opt.id}

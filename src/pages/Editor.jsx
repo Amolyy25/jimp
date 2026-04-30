@@ -28,7 +28,7 @@ import {
   Check, 
   ArrowRight, 
   Sparkles, 
-  MousePointer2, 
+  MousePointer, 
   Laptop,
   X
 } from 'lucide-react';
@@ -827,7 +827,7 @@ function OnboardingModal({ onComplete, onApplyTemplate }) {
     {
       title: "Comment ça marche ?",
       subtitle: "L'éditeur est un canevas libre. Tout est modifiable.",
-      icon: <MousePointer2 className="h-6 w-6 text-discord" />,
+      icon: <MousePointer className="h-6 w-6 text-discord" />,
       button: "Terminer",
       content: (
         <div className="mt-8 space-y-4">
