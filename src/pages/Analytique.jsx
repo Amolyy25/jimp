@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import AdminRoute from '../components/AdminRoute.jsx';
 import { getAdminStats, logout } from '../utils/api.js';
+import axios from 'axios';
 
 export default function AnalytiqueRoute() {
   return (
