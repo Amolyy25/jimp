@@ -216,6 +216,7 @@ export const WIDGET_CATALOG = {
       increment: 1,
       target: 100,
     },
+  },
 };
 
 export const WIDGET_TYPES = Object.keys(WIDGET_CATALOG);
