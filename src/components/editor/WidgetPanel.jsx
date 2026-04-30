@@ -36,6 +36,8 @@ export default function WidgetPanel({ widget, onUpdate }) {
       return <TwitchStreamForm data={widget.data} onUpdate={onUpdate} />;
     case 'guestbook':
       return <GuestbookForm data={widget.data} onUpdate={onUpdate} />;
+    case 'qa':
+      return <QAForm data={widget.data} onUpdate={onUpdate} />;
     default:
       return (
         <p className="text-xs text-white/40">No editor for this widget yet.</p>
@@ -56,6 +58,42 @@ function TwitchStreamForm({ data, onUpdate }) {
         When the channel is live the widget shows the embedded player. When
         offline it shows the avatar + an "Offline" tag. Server-side polling
         is cached for 60 seconds.
+      </p>
+    </div>
+  );
+}
+
+function QAForm({ data, onUpdate }) {
+  const max = data.maxAnswered ?? 6;
+  return (
+    <div className="space-y-3">
+      <TextInput
+        label="Header"
+        value={data.title || ''}
+        onChange={(v) => onUpdate({ title: v.slice(0, 60) })}
+        placeholder="Send me a message"
+        filter
+      />
+      <TextInput
+        label="Placeholder"
+        value={data.placeholder || ''}
+        onChange={(v) => onUpdate({ placeholder: v.slice(0, 80) })}
+        placeholder="Anything anonymous…"
+        filter
+      />
+      <TextInput
+        label="Answers shown"
+        value={String(max)}
+        onChange={(v) => {
+          const n = Math.max(1, Math.min(20, parseInt(v, 10) || 6));
+          onUpdate({ maxAnswered: n });
+        }}
+        placeholder="6"
+      />
+      <p className="text-[11px] leading-relaxed text-white/40">
+        Visitors send messages anonymously. You'll see them in your inbox
+        and choose which to publish — answered ones appear here on your
+        profile.
       </p>
     </div>
   );

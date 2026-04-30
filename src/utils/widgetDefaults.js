@@ -190,6 +190,18 @@ export const WIDGET_CATALOG = {
     style: { ...baseStyle(), bgOpacity: 0.05 },
     data: { maxEntries: 6 },
   },
+  qa: {
+    type: 'qa',
+    label: 'Anonymous Q&A',
+    defaultPos: { x: 60, y: 60 },
+    defaultSize: { w: 36, h: 32 },
+    style: { ...baseStyle(), bgOpacity: 0.05 },
+    data: {
+      title: 'Send me a message',
+      placeholder: 'Anything anonymous…',
+      maxAnswered: 6,
+    },
+  },
 };
 
 export const WIDGET_TYPES = Object.keys(WIDGET_CATALOG);

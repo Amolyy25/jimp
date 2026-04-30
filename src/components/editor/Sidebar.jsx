@@ -10,7 +10,9 @@ import TextInput from './controls/TextInput.jsx';
 import VanityUrlPanel from './VanityUrlPanel.jsx';
 import TemplatesPanel from './TemplatesPanel.jsx';
 import AnalyticsPanel from './AnalyticsPanel.jsx';
+import InboxPanel from './InboxPanel.jsx';
 import { resolveAccent } from '../../utils/theme.js';
+import { listMyQuestions } from '../../utils/api.js';
 
 /**
  * Right-hand editor sidebar.
@@ -96,6 +98,27 @@ function GlobalView({
   serverSlug,
   onOpenHistory,
 }) {
+  const hasQAWidget = !!profile?.widgets?.some((w) => w.type === 'qa');
+
+  // Light global poll for the pending count so the Inbox tab badge stays
+  // accurate even when the user is editing other sections. We only poll
+  // when authenticated AND a slug is claimed — no DB hit for anonymous
+  // editor sessions.
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    if (!me || !serverSlug) return;
+    let cancelled = false;
+    const tick = async () => {
+      const data = await listMyQuestions({ status: 'PENDING', limit: 1 });
+      if (!cancelled) setPendingCount(data.counts?.pending || 0);
+    };
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [me, serverSlug]);
 
   return (
     <>
@@ -112,6 +135,7 @@ function GlobalView({
           { id: 'background', label: 'Background' },
           { id: 'music', label: 'Music' },
           { id: 'theme', label: 'Theme' },
+          { id: 'inbox', label: 'Inbox', badge: pendingCount },
           { id: 'analytics', label: 'Analytics' },
           { id: 'share', label: 'Share' },
         ]}
@@ -143,6 +167,9 @@ function GlobalView({
         )}
         {section === 'theme' && (
           <ThemeSection theme={profile.theme} onChange={onUpdateTheme} />
+        )}
+        {section === 'inbox' && (
+          <InboxPanel hasQAWidget={hasQAWidget} />
         )}
         {section === 'analytics' && (
           <AnalyticsPanel slug={serverSlug} onOpenHistory={onOpenHistory} />
@@ -683,17 +710,29 @@ function SectionTabs({ sections, active, onChange }) {
     <div ref={scrollRef} className="flex overflow-x-auto scrollbar-hide whitespace-nowrap border-b border-white/5 bg-ink-900 px-2">
       {sections.map((s) => {
         const isActive = s.id === active;
+        const hasBadge = Number.isFinite(s.badge) && s.badge > 0;
         return (
           <button
             key={s.id}
             type="button"
             onClick={() => onChange(s.id)}
             className={[
-              'relative shrink-0 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition',
+              'relative inline-flex shrink-0 items-center gap-1.5 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition',
               isActive ? 'text-white' : 'text-white/40 hover:text-white/70',
             ].join(' ')}
           >
             {s.label}
+            {hasBadge && (
+              <span
+                className={[
+                  'inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 font-mono text-[9px] tabular-nums',
+                  isActive ? 'bg-discord text-white' : 'bg-white/10 text-white/70',
+                ].join(' ')}
+                aria-label={`${s.badge} pending`}
+              >
+                {s.badge > 99 ? '99+' : s.badge}
+              </span>
+            )}
             {isActive && (
               <span className="absolute -bottom-px left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-discord" />
             )}

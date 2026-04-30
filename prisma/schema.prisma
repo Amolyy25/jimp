@@ -62,6 +62,8 @@ model Profile {
   clicks        ClickEvent[]
   followedBy    Follow[]
   guestbook     GuestbookEntry[]
+  questions     Question[]
+  askerBlocks   AskerBlock[]
 
   @@index([slug])
 }
@@ -118,6 +120,49 @@ model Follow {
   @@unique([followerId, followeeId])
   @@index([followerId])
   @@index([followeeId])
+}
+
+// Anonymous Q&A: visitors can drop a question on a profile without an
+// account. Only the owner sees PENDING entries; ANSWERED entries surface
+// publicly via the Q&A widget. `askerHash` is a daily-rotated salted hash
+// used solely for rate limiting + soft-blocking — never exposed and never
+// reversible to an IP after the salt rotates.
+model Question {
+  id         String        @id @default(cuid())
+  profileId  String
+  profile    Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  body       String
+  answer     String?
+  answeredAt DateTime?
+  askerHash  String
+  status     QStatus       @default(PENDING)
+  createdAt  DateTime      @default(now())
+
+  @@index([profileId, status, createdAt])
+  @@index([profileId, askerHash])
+  @@index([profileId, createdAt])
+}
+
+enum QStatus {
+  PENDING
+  ANSWERED
+  HIDDEN
+  BLOCKED
+}
+
+// Per-profile soft-block list: an owner can prevent a specific anonymous
+// asker from sending again. We persist the daily-rotated hash, so a block
+// effectively expires when the salt rotates (~24h). This is intentional —
+// permanent IP bans against anonymous traffic are RGPD-fragile and easily
+// circumvented anyway. Repeat offenders get re-blocked automatically.
+model AskerBlock {
+  profileId  String
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  askerHash  String
+  createdAt  DateTime @default(now())
+
+  @@id([profileId, askerHash])
+  @@index([profileId])
 }
 
 model GuestbookEntry {

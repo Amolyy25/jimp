@@ -8,7 +8,11 @@
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{2,30}$/;
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,29}$/;
+// New claims must be 4-30. Short slugs (2-3 chars) are reserved for a future
+// premium tier — `SLUG_GRANDFATHER_RE` keeps existing 2-3 char profiles
+// reachable on routing/QR/etc, but `SLUG_RE` is the bar for new claims.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{3,29}$/;
+const SLUG_GRANDFATHER_RE = /^[a-z0-9][a-z0-9-]{1,29}$/;
 
 const URL_PROTOCOLS = new Set(['http:', 'https:']);
 
@@ -22,6 +26,11 @@ export function isUsername(s) {
 
 export function isSlug(s) {
   return typeof s === 'string' && SLUG_RE.test(s);
+}
+
+/** Routing/lookup form — accepts grandfathered 2-3 char slugs. */
+export function isSlugRoutable(s) {
+  return typeof s === 'string' && SLUG_GRANDFATHER_RE.test(s);
 }
 
 export function isStrongEnoughPassword(s) {

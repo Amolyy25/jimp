@@ -32,6 +32,7 @@ import { isSlugForbidden } from './forbiddenSlugs.js';
 import { renderProfileOg, invalidateOgCache } from './og.js';
 import { registerSpotifyRoutes } from './spotify.js';
 import { registerDiscordAuthRoutes } from './discordAuth.js';
+import { registerQuestionRoutes } from './questions.js';
 import { sanitizeCustomCss } from './sanitizeCss.js';
 import { registerTwitchRoutes } from './twitch.js';
 import { registerImportRoutes } from './importLinktree.js';
@@ -363,10 +364,13 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
     return res.status(400).json({ error: 'Slug is required' });
   }
   const normalizedSlug = slug.toLowerCase().trim();
-  if (!/^[a-z0-9][a-z0-9-]{1,29}$/.test(normalizedSlug)) {
+  // 4-30 enforcement on new claims and renames. Existing 2-3 char slugs
+  // (grandfathered) keep working on routing/lookups but cannot be re-claimed
+  // once released.
+  if (!/^[a-z0-9][a-z0-9-]{3,29}$/.test(normalizedSlug)) {
     return res.status(400).json({
       error:
-        'Slug must be 2–30 chars, lowercase letters, digits or dashes, and cannot start with a dash',
+        'Slug must be 4–30 chars: lowercase letters, digits or dashes, and cannot start with a dash.',
     });
   }
   if (isSlugForbidden(normalizedSlug)) {
@@ -506,10 +510,13 @@ registerAnalyticsRoutes(app, prisma, authenticate, { ingestLimiter });
 registerVersionRoutes(app, prisma, authenticate, { writeLimiter });
 registerSocialRoutes(app, prisma, authenticate, { writeLimiter });
 registerAdminRoutes(app, prisma, authenticate);
+registerQuestionRoutes(app, prisma, authenticate, { writeLimiter });
 
 app.get('/api/check-slug/:slug', async (req, res) => {
   const slug = (req.params.slug || '').toLowerCase();
-  if (!/^[a-z0-9][a-z0-9-]{1,29}$/.test(slug) || isSlugForbidden(slug)) {
+  // Mirror the claim-side rule (4-30) so the editor never says "available"
+  // for a slug the POST will then reject.
+  if (!/^[a-z0-9][a-z0-9-]{3,29}$/.test(slug) || isSlugForbidden(slug)) {
     return res.json({ available: false });
   }
   const profile = await prisma.profile.findUnique({ where: { slug } });

@@ -77,8 +77,11 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
   const locked = !!myProfile?.locked;
   const slugChangeBlocked = slugDirty && locked;
 
+  // 4-30 on new claims (matches server). The user's CURRENT slug, even if
+  // 2-3 chars (grandfathered), stays valid because we only enforce the
+  // longer rule on dirty/changing values.
   const validSlugFormat = useMemo(
-    () => /^[a-z0-9][a-z0-9-]{1,29}$/.test(slug),
+    () => /^[a-z0-9][a-z0-9-]{3,29}$/.test(slug),
     [slug],
   );
 
@@ -238,7 +241,7 @@ export default function VanityUrlPanel({ profile, me, onSlugClaimed }) {
 
         {slug && !validSlugFormat && (
           <p className="text-[10px] text-red-400">
-            2–30 chars. Lowercase letters, digits or dashes. Can't start with a dash.
+            4–30 chars. Lowercase letters, digits or dashes. Can't start with a dash.
           </p>
         )}
         {slug && validSlugFormat && slugDirty && available === false && (

@@ -17,6 +17,7 @@ import VisitorCounterWidget from './VisitorCounterWidget.jsx';
 import DiscordPresenceWidget from './DiscordPresenceWidget.jsx';
 import TwitchStreamWidget from './TwitchStreamWidget.jsx';
 import GuestbookWidget from './GuestbookWidget.jsx';
+import QAWidget from './QAWidget.jsx';
 
 export const WIDGET_REGISTRY = {
   avatar: { component: AvatarWidget, label: 'Avatar & identité' },
@@ -32,4 +33,5 @@ export const WIDGET_REGISTRY = {
   discordPresence: { component: DiscordPresenceWidget, label: 'Discord Presence' },
   twitchStream: { component: TwitchStreamWidget, label: 'Twitch Stream' },
   guestbook: { component: GuestbookWidget, label: 'Guestbook' },
+  qa: { component: QAWidget, label: 'Anonymous Q&A' },
 };

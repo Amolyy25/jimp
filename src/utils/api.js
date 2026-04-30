@@ -221,6 +221,61 @@ export async function importLinktree(url) {
   return data;
 }
 
+/* -------- Q&A (anonymous) -------- */
+
+/** Submit an anonymous question to a profile. Pass an hCaptcha token when
+ *  available. Returns true on accepted/silently-accepted, throws on real
+ *  validation errors so the UI can show them. */
+export async function sendQuestion(slug, body, captchaToken) {
+  const { data } = await api.post(
+    `/questions/${slug}`,
+    { body, captcha: captchaToken },
+    { headers: captchaToken ? { 'X-Captcha-Token': captchaToken } : undefined },
+  );
+  return !!data?.ok;
+}
+
+/** Public list of answered questions for a profile. Cursor-paginated. */
+export async function listAnsweredQuestions(slug, { limit = 20, cursor } = {}) {
+  try {
+    const params = new URLSearchParams();
+    params.set('limit', String(limit));
+    if (cursor) params.set('cursor', cursor);
+    const { data } = await api.get(`/questions/${slug}?${params.toString()}`);
+    return data || { items: [], nextCursor: null };
+  } catch {
+    return { items: [], nextCursor: null };
+  }
+}
+
+/** Authenticated owner inbox. */
+export async function listMyQuestions({ status = 'PENDING', limit = 20, cursor } = {}) {
+  try {
+    const params = new URLSearchParams();
+    params.set('status', status);
+    params.set('limit', String(limit));
+    if (cursor) params.set('cursor', cursor);
+    const { data } = await api.get(`/profiles/me/questions?${params.toString()}`);
+    return data || { items: [], nextCursor: null, counts: { pending: 0 } };
+  } catch {
+    return { items: [], nextCursor: null, counts: { pending: 0 } };
+  }
+}
+
+export async function answerQuestion(id, answer) {
+  const { data } = await api.post(`/questions/${id}/answer`, { answer });
+  return data;
+}
+export async function hideQuestion(id) {
+  await api.post(`/questions/${id}/hide`);
+}
+export async function deleteQuestion(id) {
+  await api.delete(`/questions/${id}`);
+}
+export async function blockAsker(id) {
+  await api.post(`/questions/${id}/block-asker`);
+}
+
 /* -------- Social: follows + guestbook -------- */
 
 export async function follow(slug) {
