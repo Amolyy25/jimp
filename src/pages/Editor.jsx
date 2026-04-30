@@ -90,8 +90,27 @@ export default function Editor() {
     const widgets = profile.widgets.filter((w) => ids.includes(w.id));
     if (widgets.length < 2) return;
 
+    // Find if there is an existing group in the selection
+    const existingGroup = widgets.find(w => w.type === 'group');
+
+    let targetGroupId = existingGroup ? existingGroup.id : nanoid(8);
     let minX = 100, minY = 100, maxX = 0, maxY = 0;
-    widgets.forEach((w) => {
+
+    // We calculate the bounding box using all children of the existing group + newly selected widgets
+    const allIdsToGroup = [...ids];
+    if (existingGroup) {
+      profile.widgets.forEach(w => {
+        if (w.groupId === existingGroup.id && !allIdsToGroup.includes(w.id)) {
+          allIdsToGroup.push(w.id);
+        }
+      });
+    }
+
+    const allWidgets = profile.widgets.filter(w => allIdsToGroup.includes(w.id) || (existingGroup && w.id === existingGroup.id));
+
+    allWidgets.forEach((w) => {
+      if (w.type === 'group') return;
+
       const auto = w.style?.autoSize;
       const left = auto ? w.pos.x - w.size.w / 2 : w.pos.x;
       const top = auto ? w.pos.y - w.size.h / 2 : w.pos.y;
@@ -110,26 +129,49 @@ export default function Editor() {
     maxX = Math.min(100, maxX + padding);
     maxY = Math.min(100, maxY + padding);
 
-    const newGroup = {
-      id: nanoid(8),
-      type: 'group',
-      pos: { x: Number(minX.toFixed(2)), y: Number(minY.toFixed(2)) },
-      size: { w: Number((maxX - minX).toFixed(2)), h: Number((maxY - minY).toFixed(2)) },
-      style: { bgOpacity: 0.05, blur: 16, autoSize: false, borderRadius: 16 },
-      data: { title: 'Groupe', enable3D: false },
-      visible: true,
-    };
+    const groupPos = { x: Number(minX.toFixed(2)), y: Number(minY.toFixed(2)) };
+    const groupSize = { w: Number((maxX - minX).toFixed(2)), h: Number((maxY - minY).toFixed(2)) };
 
     setProfile((prev) => {
       const nextWidgets = prev.widgets.map((w) => {
-        if (ids.includes(w.id)) {
-          return { ...w, groupId: newGroup.id };
+        if (w.id === targetGroupId) {
+          return { ...w, pos: groupPos, size: groupSize };
+        }
+        if (allIdsToGroup.includes(w.id)) {
+          if (w.type === 'group') return w;
+          return { ...w, groupId: targetGroupId };
         }
         return w;
       });
-      return { ...prev, widgets: [...nextWidgets, newGroup] };
+
+      if (!existingGroup) {
+        const newGroup = {
+          id: targetGroupId,
+          type: 'group',
+          pos: groupPos,
+          size: groupSize,
+          style: { bgOpacity: 0.05, blur: 16, autoSize: false, borderRadius: 16 },
+          data: { title: 'Groupe', enable3D: false },
+          visible: true,
+        };
+        nextWidgets.push(newGroup);
+      }
+
+      // Handle disbanding other selected groups
+      const otherGroupIds = widgets.filter(w => w.type === 'group' && w.id !== targetGroupId).map(w => w.id);
+      let finalWidgets = nextWidgets;
+      if (otherGroupIds.length > 0) {
+        finalWidgets = nextWidgets.filter(w => !otherGroupIds.includes(w.id)).map(w => {
+           if (otherGroupIds.includes(w.groupId)) {
+               return { ...w, groupId: targetGroupId };
+           }
+           return w;
+        });
+      }
+
+      return { ...prev, widgets: finalWidgets };
     });
-    setSelectedIds([newGroup.id]);
+    setSelectedIds([targetGroupId]);
   }, [profile.widgets]);
 
   const handleUngroupWidget = useCallback((groupId) => {

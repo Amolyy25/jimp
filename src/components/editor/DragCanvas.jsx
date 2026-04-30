@@ -249,21 +249,34 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['15deg', '-15deg']);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-15deg', '15deg']);
 
-  const onMouseMove = (e) => {
-    if (!enable3D) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    x.set(mouseX / width - 0.5);
-    y.set(mouseY / height - 0.5);
-  };
-  const onMouseLeave = () => {
-    if (!enable3D) return;
-    x.set(0);
-    y.set(0);
-  };
+  useEffect(() => {
+    if (!enable3D) {
+      x.set(0);
+      y.set(0);
+      return;
+    }
+
+    const handleMouseMove = (e) => {
+      const groupEl = document.getElementById(`widget-${groupWidget.id}`);
+      if (!groupEl) return;
+      
+      const rect = groupEl.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      
+      const deltaX = e.clientX - cx;
+      const deltaY = e.clientY - cy;
+      
+      const pctX = Math.max(-1, Math.min(1, deltaX / (window.innerWidth / 2)));
+      const pctY = Math.max(-1, Math.min(1, deltaY / (window.innerHeight / 2)));
+      
+      x.set(pctX * 0.5);
+      y.set(pctY * 0.5);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [enable3D, groupWidget.id, x, y]);
 
   const cx = auto ? groupWidget.pos.x : groupWidget.pos.x + groupWidget.size.w / 2;
   const cy = auto ? groupWidget.pos.y : groupWidget.pos.y + groupWidget.size.h / 2;
@@ -282,14 +295,13 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
       }}
     >
       <WidgetNode 
-        widget={groupWidget} 
-        isSelected={isSelected} 
-        startDrag={startDrag} 
-        accent={accent} 
-        accentCss={accentCss} 
+        key={groupWidget.id}
+        widget={groupWidget}
+        isSelected={isSelected}
+        startDrag={startDrag}
+        accent={accent}
+        accentCss={accentCss}
         index={index}
-        onMouseMove={onMouseMove}
-        onMouseLeave={onMouseLeave}
       />
       {childWidgets.map((w, j) => (
         <WidgetNode 
@@ -306,7 +318,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
   );
 }
 
-function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, index, onMouseMove, onMouseLeave }) {
+function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, index }) {
   const auto = !!widget.style?.autoSize;
   const wrapperStyle = auto
     ? {
@@ -333,11 +345,10 @@ function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, index, o
 
   return (
     <div
+      id={`widget-${widget.id}`}
       className={['group absolute select-none transition-shadow pointer-events-auto', isSelected ? 'z-30' : 'z-20'].join(' ')}
       style={wrapperStyle}
       onPointerDown={(e) => startDrag(e, widget, 'move')}
-      onMouseMove={onMouseMove}
-      onMouseLeave={onMouseLeave}
     >
       {(widget.style?.bgOpacity ?? 0) < 0.03 && !isSelected && (
         <div className="pointer-events-none absolute inset-0 rounded-[inherit] border border-dashed border-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />

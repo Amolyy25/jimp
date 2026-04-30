@@ -98,6 +98,35 @@ export default function StylePanel({ style, onUpdate, profile, widget, onUpdateW
       <div className="border-t border-white/5" />
 
       <section className="space-y-3">
+        <SectionTitle>Glow / Ombre</SectionTitle>
+        <ColorInput
+          label="Glow color"
+          value={style.shadowColor || '#ffffff'}
+          onChange={(v) => onUpdate({ shadowColor: v })}
+        />
+        <SliderInput
+          label="Glow opacity"
+          min={0}
+          max={1}
+          step={0.01}
+          value={style.shadowOpacity ?? 0}
+          onChange={(v) => onUpdate({ shadowOpacity: v })}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
+        <SliderInput
+          label="Glow blur"
+          min={0}
+          max={100}
+          step={1}
+          value={style.shadowBlur ?? 32}
+          onChange={(v) => onUpdate({ shadowBlur: v })}
+          unit="px"
+        />
+      </section>
+
+      <div className="border-t border-white/5" />
+
+      <section className="space-y-3">
         <SectionTitle>Layout</SectionTitle>
         <label className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
           <div>

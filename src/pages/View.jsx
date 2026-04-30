@@ -289,21 +289,34 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['15deg', '-15deg']);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-15deg', '15deg']);
 
-  const onMouseMove = (e) => {
-    if (!enable3D) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    x.set(mouseX / width - 0.5);
-    y.set(mouseY / height - 0.5);
-  };
-  const onMouseLeave = () => {
-    if (!enable3D) return;
-    x.set(0);
-    y.set(0);
-  };
+  useEffect(() => {
+    if (!enable3D) {
+      x.set(0);
+      y.set(0);
+      return;
+    }
+
+    const handleMouseMove = (e) => {
+      const groupEl = document.getElementById(`widget-${groupWidget.id}`);
+      if (!groupEl) return;
+      
+      const rect = groupEl.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      
+      const deltaX = e.clientX - cx;
+      const deltaY = e.clientY - cy;
+      
+      const pctX = Math.max(-1, Math.min(1, deltaX / (window.innerWidth / 2)));
+      const pctY = Math.max(-1, Math.min(1, deltaY / (window.innerHeight / 2)));
+      
+      x.set(pctX * 0.5);
+      y.set(pctY * 0.5);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [enable3D, groupWidget.id, x, y]);
 
   const cx = auto ? groupWidget.pos.x : groupWidget.pos.x + groupWidget.size.w / 2;
   const cy = auto ? groupWidget.pos.y : groupWidget.pos.y + groupWidget.size.h / 2;
@@ -327,8 +340,6 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
         ownerId={ownerId}
         slug={slug}
         playing={playing}
-        onMouseMove={onMouseMove}
-        onMouseLeave={onMouseLeave}
       />
       {childWidgets.map((w, j) => (
         <WidgetNodeView 
@@ -346,7 +357,7 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
   );
 }
 
-function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, onMouseMove, onMouseLeave }) {
+function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing }) {
   const Comp = WIDGET_REGISTRY[w.type]?.component;
   if (!Comp) return null;
 
@@ -386,10 +397,9 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, onMou
 
   return (
     <div 
+      id={`widget-${w.id}`}
       className="absolute pointer-events-auto" 
       style={layoutStyle}
-      onMouseMove={onMouseMove}
-      onMouseLeave={onMouseLeave}
     >
       <motion.div
         className={auto ? '' : 'h-full w-full'}

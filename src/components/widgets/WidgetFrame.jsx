@@ -25,12 +25,16 @@ export default function WidgetFrame({
       ? hexToRgba(s.borderColor || '#ffffff', s.borderOpacity ?? 0.08)
       : 'transparent';
 
+  const shadowColor = s.shadowOpacity > 0 ? hexToRgba(s.shadowColor || '#ffffff', s.shadowOpacity) : 'transparent';
+  const boxShadow = s.shadowOpacity > 0 ? `0px 8px ${s.shadowBlur ?? 32}px ${s.shadowSpread ?? 0}px ${shadowColor}` : undefined;
+
   const style = {
     backgroundColor,
     border: `${s.borderWidth ?? 0}px solid ${borderColor}`,
     borderRadius: `${s.borderRadius ?? 16}px`,
     color: s.textColor || '#ffffff',
     fontFamily: s.fontFamily ? `'${s.fontFamily}', sans-serif` : 'inherit',
+    boxShadow,
     // Only apply backdrop blur when there's some visible background — blur on
     // fully transparent backgrounds is wasted GPU work.
     backdropFilter:

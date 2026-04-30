@@ -52,6 +52,7 @@ export default function Sidebar({
     <aside className="flex h-screen w-[380px] flex-col border-l border-white/5 bg-ink-900">
       {selectedIds && selectedIds.length > 1 ? (
         <MultiSelectView 
+          profile={profile}
           selectedIds={selectedIds} 
           onGroup={() => onGroupWidgets(selectedIds)} 
           onBack={() => onSelectWidget(null)} 
@@ -94,7 +95,10 @@ export default function Sidebar({
 /* Multi-select view                                                          */
 /* -------------------------------------------------------------------------- */
 
-function MultiSelectView({ selectedIds, onGroup, onBack }) {
+function MultiSelectView({ profile, selectedIds, onGroup, onBack }) {
+  const selectedWidgets = profile.widgets.filter(w => selectedIds.includes(w.id));
+  const hasGroup = selectedWidgets.some(w => w.type === 'group');
+
   return (
     <>
       <div className="flex items-center justify-between border-b border-white/5 p-4">
@@ -116,10 +120,12 @@ function MultiSelectView({ selectedIds, onGroup, onBack }) {
           onClick={onGroup}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-discord px-4 py-3 text-xs font-bold text-white shadow-lg transition hover:brightness-110"
         >
-          Créer un groupe
+          {hasGroup ? 'Ajouter au groupe' : 'Créer un groupe'}
         </button>
         <p className="mt-4 text-[11px] leading-relaxed text-white/40">
-          Grouper ces widgets les fusionnera dans un conteneur déplaçable. Vous pourrez ensuite activer l'effet 3D ou définir une bordure globale.
+          {hasGroup 
+            ? 'Les widgets sélectionnés seront ajoutés au groupe existant et le conteneur s\'adaptera à leur taille.' 
+            : 'Grouper ces widgets les fusionnera dans un conteneur déplaçable. Vous pourrez ensuite activer l\'effet 3D ou définir une bordure globale.'}
         </p>
       </div>
     </>
