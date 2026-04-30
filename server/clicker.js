@@ -19,6 +19,14 @@ const MAX_CLICKS_PER_REQ = 50;
 const LEADERBOARD_DEFAULT = 50;
 const LEADERBOARD_MAX = 100;
 
+// Caching infrastructure for rank/total calculations to survive traffic spikes.
+let cachedTotalCount = 0;
+let lastTotalUpdate = 0;
+const TOTAL_CACHE_TTL = 30_000;
+
+const rankCache = new Map(); // slug -> { rank, timestamp }
+const RANK_CACHE_TTL = 2_000;
+
 export function registerClickerRoutes(app, prisma, opts = {}) {
   const ingestLimiter = opts.ingestLimiter || ((_req, _res, next) => next());
 

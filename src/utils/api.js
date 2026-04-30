@@ -334,8 +334,18 @@ export async function getClickerScore(slug) {
 /** Send a batch of clicks. Server caps `count` at 50. Returns updated state. */
 export async function postClickerBatch(slug, count) {
   try {
-    const { data } = await api.post(`/clicker/${slug}`, { count });
-    return data; // { score, added, rank, total }
+    // We use native fetch with keepalive: true instead of axios here.
+    // This ensures that the request is completed even if the user closes
+    // the tab or navigates away (ideal for "last batch" flushes).
+    const response = await fetch(`${baseURL}/clicker/${slug}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count }),
+      keepalive: true,
+    });
+    
+    if (!response.ok) return null;
+    return await response.json(); // { score, added, rank, total }
   } catch {
     return null;
   }

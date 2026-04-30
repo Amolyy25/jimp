@@ -69,13 +69,25 @@ export default function ClickerGameWidget({ widget, accent, slug }) {
     return () => clearInterval(id);
   }, [isLive, slug]);
 
-  useEffect(
-    () => () => {
+  // Ensure we flush any pending clicks if the user navigates away or hides the tab.
+  useEffect(() => {
+    if (!isLive) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        flushBatch();
+      }
+    };
+    window.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', flushBatch);
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', flushBatch);
       clearTimeout(pressTimer.current);
       clearTimeout(flushTimer.current);
-    },
-    [],
-  );
+      // Final flush attempt on component unmount
+      flushBatch();
+    };
+  }, [isLive, slug]);
 
   const flushBatch = async () => {
     if (isFlushingRef.current || !isLive) return;
