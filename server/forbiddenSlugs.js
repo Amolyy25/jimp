@@ -61,16 +61,32 @@ export function isSlugForbidden(slug) {
   // Check exact matches
   if (FORBIDDEN_SLUGS.has(normalized)) return true;
   
-  // Check for common variations / substrings if needed, 
-  // but usually exact match + regex for offensive patterns is enough.
-  
-  // Example regex for some offensive patterns
-  const offensivePatterns = [
-    /f[u\*][c\*]k/i,
-    /sh[i\*]t/i,
-    /n[i\*]gg[ae]r?/i,
-    /p[o\*]rn/i,
+  // Check for common variations / substrings using robust patterns
+  const offensiveTerms = [
+    'pute', 'salope', 'connard', 'encule', 'pd', 'negre', 'bougnoule', 'bicot',
+    'nigger', 'nigga', 'faggot', 'fag', 'kike', 'chink', 'gook', 'spic',
+    'cunt', 'pussy', 'porn', 'sex', 'fuck', 'shit', 'cum'
   ];
+
+  const LEET_MAP = {
+    'a': '[a4@àâäаα]', 'b': '[b8ß]', 'c': '[cç(с]', 'd': '[d]',
+    'e': '[e3éèêëе€]', 'f': '[f]', 'g': '[g9]', 'h': '[h]',
+    'i': '[i1!ìîïі|]', 'j': '[j]', 'k': '[k]', 'l': '[l1|]',
+    'm': '[m]', 'n': '[nñ]', 'o': '[o0ôöоø]', 'p': '[pр]',
+    'q': '[q]', 'r': '[r]', 's': '[s5$z§]', 't': '[t7+†]',
+    'u': '[uùûü#vц]', 'v': '[v]', 'w': '[w]', 'x': '[xх]',
+    'y': '[yу]', 'z': '[z2]',
+  };
+
+  const isRobustMatch = offensiveTerms.some(word => {
+    const parts = word.split('').map(char => `${LEET_MAP[char] || char}+`);
+    // Slugs are simple, no spaces/punctuation usually, but we check for repetitions
+    const re = new RegExp(parts.join(''), 'i');
+    return re.test(normalized);
+  });
+
+  if (isRobustMatch) return true;
   
-  return offensivePatterns.some(pattern => pattern.test(normalized));
+  return false;
 }
+

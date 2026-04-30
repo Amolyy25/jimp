@@ -1,17 +1,11 @@
 /**
- * Server-side profanity filter — single source of truth.
+ * Server-side profanity filter — ultra-robust version.
  *
- * Keep the list short and word-boundary friendly. Matching is case-insensitive
- * and tolerant of common leet-speak (0→o, 1→i, 3→e, 4→a, 5→s, 7→t).
- *
- * Two modes:
- *   - `hasProfanity(text)`     → boolean (use to reject input)
- *   - `maskProfanity(text)`    → returns the original string with offending
- *                                 tokens replaced by `*` (use to soft-clean
- *                                 user-visible content like guestbook posts)
- *
- * The list mirrors `src/utils/profanity.js` so client- and server-side checks
- * stay consistent. If you add a word here, mirror it there.
+ * This filter handles common bypasses:
+ * - Repeated characters (puuuuute)
+ * - Punctuation/spaces between characters (p.u.t.e, p u t e)
+ * - Leet-speak and homoglyphs (p#ute, p0rn, @ss, рute with Cyrillic p)
+ * - Accents (enculé)
  */
 
 const BLOCKED = [
@@ -19,7 +13,7 @@ const BLOCKED = [
   'negro', 'negre', 'nigger', 'nigga', 'bougnoule', 'bicot', 'rebeu',
   'chink', 'jap', 'gook', 'spic', 'kike',
   // Homophobic / transphobic slurs
-  'faggot', 'fag', 'pd', 'pede', 'tapette', 'tranny', 'shemale',
+  'faggot', 'fag', 'pd', 'pede', 'tapette', 'tranny', 'shemale', 'goy',
   // Common raw insults
   'pute', 'putain', 'salope', 'connard', 'enculé', 'encule', 'fdp',
   'petasse', 'trouduc', 'mongol', 'debile', 'abruti',
@@ -30,21 +24,51 @@ const BLOCKED = [
   'hitler', 'nazi', 'isis', 'taliban',
 ];
 
-const BLOCKED_REGEX = new RegExp(
-  `\\b(${BLOCKED.map(escapeRegex).join('|')})\\b`,
-  'i'
-);
+const LEET_MAP = {
+  'a': '[a4@àâäаα]',
+  'b': '[b8ß]',
+  'c': '[cç(с]',
+  'd': '[d]',
+  'e': '[e3éèêëе€]',
+  'f': '[f]',
+  'g': '[g9]',
+  'h': '[h]',
+  'i': '[i1!ìîïі|]',
+  'j': '[j]',
+  'k': '[k]',
+  'l': '[l1|]',
+  'm': '[m]',
+  'n': '[nñ]',
+  'o': '[o0ôöоø]',
+  'p': '[pр]',
+  'q': '[q]',
+  'r': '[r]',
+  's': '[s5$z§]',
+  't': '[t7+†]',
+  'u': '[uùûü#vц]',
+  'v': '[v]',
+  'w': '[w]',
+  'x': '[xх]',
+  'y': '[yу]',
+  'z': '[z2]',
+};
 
-function normalize(str) {
-  return String(str)
-    .toLowerCase()
-    .replace(/[0]/g, 'o')
-    .replace(/[1!]/g, 'i')
-    .replace(/[3]/g, 'e')
-    .replace(/[4@]/g, 'a')
-    .replace(/[5$]/g, 's')
-    .replace(/[7]/g, 't');
+/**
+ * Builds a regex that is robust against repetitions, spacing, and leet-speak.
+ */
+function buildRobustRegex(word) {
+  const normalized = word.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const parts = normalized.split('').map((char, index) => {
+    const leet = LEET_MAP[char] || escapeRegex(char);
+    // Allow repetitions (+) and optional separators ([^a-z0-9]*) between characters.
+    const separator = index < normalized.length - 1 ? '[^a-z0-9]*' : '';
+    return `${leet}+${separator}`;
+  });
+  // Use non-word/digit boundaries to avoid the Scunthorpe problem (e.g., "computer")
+  return new RegExp(`(?:^|[^a-z0-9])(${parts.join('')})(?:$|[^a-z0-9])`, 'i');
 }
+
+const ROBUST_REGEXES = BLOCKED.map(buildRobustRegex);
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -52,39 +76,45 @@ function escapeRegex(str) {
 
 export function detectProfanity(text) {
   if (!text) return [];
-  const normalized = normalize(text);
-  const match = normalized.match(BLOCKED_REGEX);
-  return match ? [match[0]] : [];
+  const hits = [];
+  for (let i = 0; i < BLOCKED.length; i++) {
+    const match = text.match(ROBUST_REGEXES[i]);
+    if (match) {
+      hits.push(BLOCKED[i]);
+    }
+  }
+  return hits;
 }
 
 export function hasProfanity(text) {
   if (!text) return false;
-  return BLOCKED_REGEX.test(normalize(text));
+  return ROBUST_REGEXES.some(re => re.test(text));
 }
 
 /**
  * Return `text` with detected blocked tokens replaced by `*` characters.
- * Doesn't normalise — only swaps direct substring matches of the trigger
- * words. That way the user keeps their original phrasing minus the slurs.
  */
 export function maskProfanity(text, maxLen = 240) {
   if (!text) return '';
   let out = String(text).slice(0, maxLen);
-  const normalized = normalize(out);
-  for (const word of BLOCKED) {
-    const re = new RegExp(`(?:^|[^a-z])${escapeRegex(word)}(?:$|[^a-z])`, 'i');
-    if (re.test(normalized)) {
-      const sub = new RegExp(escapeRegex(word), 'gi');
-      out = out.replace(sub, '*'.repeat(word.length));
-    }
+  
+  for (let i = 0; i < BLOCKED.length; i++) {
+    // We need to global match for masking
+    const re = new RegExp(ROBUST_REGEXES[i].source, 'gi');
+    out = out.replace(re, (match, p1) => {
+      // p1 is the captured group containing the offending word (without boundaries)
+      if (!p1) return match;
+      const startBoundary = match.indexOf(p1);
+      const prefix = match.substring(0, startBoundary);
+      const suffix = match.substring(startBoundary + p1.length);
+      return prefix + '*'.repeat(p1.length) + suffix;
+    });
   }
   return out.trim();
 }
 
 /**
  * Walk an arbitrary object/array and check every string field for profanity.
- * Useful for screening profile blobs without listing every property by hand.
- * Returns the FIRST offending token found, or null.
  */
 export function findProfanityInObject(obj, depth = 0) {
   if (depth > 8 || obj == null) return null;
