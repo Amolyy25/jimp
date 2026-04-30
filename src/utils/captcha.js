@@ -7,7 +7,10 @@
  * that mode too, so dev / preview just works.
  */
 
-const SCRIPT_SRC = 'https://js.hcaptcha.com/1/api.js?render=invisible';
+// `render=explicit` keeps the API from auto-rendering anything — we call
+// hcaptcha.render() ourselves with size: 'invisible' below. Don't use
+// `render=invisible` (not a valid value despite what some old gists say).
+const SCRIPT_SRC = 'https://js.hcaptcha.com/1/api.js?render=explicit';
 
 let scriptPromise = null;
 
@@ -39,11 +42,17 @@ export function isCaptchaEnabled() {
  */
 export async function getCaptchaToken() {
   const siteKey = import.meta.env.VITE_HCAPTCHA_SITE_KEY;
-  if (!siteKey) return null;
+  if (!siteKey) {
+    console.warn('[captcha] VITE_HCAPTCHA_SITE_KEY missing — skipping. (If your server has HCAPTCHA_SECRET set, submissions WILL fail with 403.)');
+    return null;
+  }
 
   try {
     const hcaptcha = await loadScript();
-    if (!hcaptcha?.execute) return null;
+    if (!hcaptcha?.execute) {
+      console.warn('[captcha] script loaded but window.hcaptcha is missing');
+      return null;
+    }
 
     // Render an off-screen invisible widget once per page lifecycle.
     let host = document.getElementById('persn-hcaptcha-host');
@@ -62,13 +71,22 @@ export async function getCaptchaToken() {
 
     let widgetId = host.dataset.widgetId;
     if (!widgetId) {
-      widgetId = hcaptcha.render(host, { sitekey: siteKey, size: 'invisible' });
-      host.dataset.widgetId = String(widgetId);
+      try {
+        widgetId = hcaptcha.render(host, { sitekey: siteKey, size: 'invisible' });
+        host.dataset.widgetId = String(widgetId);
+      } catch (renderErr) {
+        // Most often: hostname not whitelisted in the hCaptcha dashboard.
+        console.error('[captcha] render failed:', renderErr, '— check hostnames at dashboard.hcaptcha.com');
+        return null;
+      }
     }
 
-    return await hcaptcha.execute(widgetId, { async: true }).then((r) => r?.response || null);
+    const result = await hcaptcha.execute(widgetId, { async: true });
+    const token = result?.response || null;
+    if (!token) console.warn('[captcha] execute returned no token:', result);
+    return token;
   } catch (err) {
-    console.warn('[captcha] failed:', err);
+    console.error('[captcha] failed:', err);
     return null;
   }
 }
