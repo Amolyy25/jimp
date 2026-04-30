@@ -318,8 +318,8 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, [enable3D, groupWidget.id, x, y]);
 
-  const cx = auto ? groupWidget.pos.x : groupWidget.pos.x + groupWidget.size.w / 2;
-  const cy = auto ? groupWidget.pos.y : groupWidget.pos.y + groupWidget.size.h / 2;
+  const cx = groupWidget.pos.x + groupWidget.size.w / 2;
+  const cy = groupWidget.pos.y + groupWidget.size.h / 2;
 
   return (
     <motion.div 

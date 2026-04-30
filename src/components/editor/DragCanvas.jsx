@@ -61,7 +61,7 @@ export default function DragCanvas({
       const dyPct = ((e.clientY - s.startY) / rect.height) * 100;
 
       if (s.mode === 'move') {
-        const auto = !!s.widget.style?.autoSize;
+        const auto = !!s.widget.style?.autoSize && s.widget.type !== 'group';
         // autoSize: pos is the widget's centre; clamp to the full grid so
         // the user can park the centre anywhere within bounds. Fixed size:
         // pos is top-left, so the right/bottom edge must stay on-grid.
@@ -340,8 +340,8 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, [enable3D, groupWidget.id, x, y]);
 
-  const cx = auto ? groupWidget.pos.x : groupWidget.pos.x + groupWidget.size.w / 2;
-  const cy = auto ? groupWidget.pos.y : groupWidget.pos.y + groupWidget.size.h / 2;
+  const cx = groupWidget.pos.x + groupWidget.size.w / 2;
+  const cy = groupWidget.pos.y + groupWidget.size.h / 2;
 
   const isChildSelected = childWidgets.some(w => selectedIds?.includes(w.id));
 
@@ -514,11 +514,19 @@ function collectAnchors(axis, widget, allWidgets) {
   const anchors = new Set([0, 50, 100]); // grid edges + centre
   for (const other of allWidgets) {
     if (other.id === widget.id || other.visible === false) continue;
+    const auto = !!other.style?.autoSize && other.type !== 'group';
     const p = axis === 'x' ? other.pos.x : other.pos.y;
     const s = axis === 'x' ? other.size.w : other.size.h;
-    anchors.add(p);
-    anchors.add(p + s / 2);
-    anchors.add(p + s);
+
+    if (auto) {
+      anchors.add(p - s / 2); // left/top
+      anchors.add(p);         // centre
+      anchors.add(p + s / 2); // right/bottom
+    } else {
+      anchors.add(p);         // left/top
+      anchors.add(p + s / 2); // centre
+      anchors.add(p + s);     // right/bottom
+    }
   }
   return Array.from(anchors);
 }

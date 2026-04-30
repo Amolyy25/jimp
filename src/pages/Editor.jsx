@@ -421,10 +421,11 @@ export default function Editor() {
            if (children.length > 0) {
               let minX = 100, minY = 100, maxX = 0, maxY = 0;
               children.forEach(w => {
-                 const left = w.pos.x;
-                 const top = w.pos.y;
-                 const right = w.pos.x + w.size.w;
-                 const bottom = w.pos.y + w.size.h;
+                 const auto = w.style?.autoSize && w.type !== 'group';
+                 const left = auto ? w.pos.x - w.size.w / 2 : w.pos.x;
+                 const top = auto ? w.pos.y - w.size.h / 2 : w.pos.y;
+                 const right = auto ? w.pos.x + w.size.w / 2 : w.pos.x + w.size.w;
+                 const bottom = auto ? w.pos.y + w.size.h / 2 : w.pos.y + w.size.h;
                  if (left < minX) minX = left;
                  if (top < minY) minY = top;
                  if (right > maxX) maxX = right;
