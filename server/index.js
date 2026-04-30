@@ -480,9 +480,6 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
       error: `Profile is too large (${size} bytes; max ${PROFILE_MAX_BYTES})`,
     });
   }
-  // Walk strings inside the profile blob looking for blocked terms. We
-  // reject the whole save rather than trying to mask deeply nested fields —
-  // the user can fix the offending widget and resubmit.
   const offending = findProfanityInObject(data);
   if (offending) {
     return res.status(400).json({
@@ -497,8 +494,7 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
     data.theme.customCss = sanitizeCustomCss(data.theme.customCss);
   }
 
-  try {
-    const existing = await prisma.profile.findUnique({ where: { userId } });
+  const existing = await prisma.profile.findUnique({ where: { userId } });
 
     if (!existing) {
       // First-time claim: check the slug is free, then create.
