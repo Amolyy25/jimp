@@ -35,6 +35,7 @@ export default function Sidebar({
   onUpdateMusic,
   onUpdateWidgetData,
   onUpdateWidgetStyle,
+  onUpdateWidget,
   activeSection,
   onSectionChange,
   me,
@@ -53,6 +54,7 @@ export default function Sidebar({
           onRemove={() => onRemoveWidget(selectedWidget.id)}
           onUpdateData={(patch) => onUpdateWidgetData(selectedWidget.id, patch)}
           onUpdateStyle={(patch) => onUpdateWidgetStyle(selectedWidget.id, patch)}
+          onUpdateWidget={(patch) => onUpdateWidget(selectedWidget.id, patch)}
         />
       ) : (
         <GlobalView
@@ -623,7 +625,7 @@ function WidgetListSection({
 /* Widget view — one widget selected                                          */
 /* -------------------------------------------------------------------------- */
 
-function WidgetView({ widget, onBack, onRemove, onUpdateData, onUpdateStyle }) {
+function WidgetView({ profile, widget, onBack, onRemove, onUpdateData, onUpdateStyle, onUpdateWidget }) {
   const [section, setSection] = useState('content');
 
   return (
@@ -667,7 +669,7 @@ function WidgetView({ widget, onBack, onRemove, onUpdateData, onUpdateStyle }) {
           <WidgetPanel widget={widget} onUpdate={onUpdateData} />
         )}
         {section === 'style' && (
-          <StylePanel style={widget.style} onUpdate={onUpdateStyle} />
+          <StylePanel style={widget.style} onUpdate={onUpdateStyle} profile={profile} widget={widget} onUpdateWidget={onUpdateWidget} />
         )}
       </div>
     </>

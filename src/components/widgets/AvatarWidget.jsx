@@ -16,7 +16,9 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss }
     bio, 
     avatarUrl, 
     hasNitro, 
-    pulseWhenPlaying 
+    pulseWhenPlaying,
+    avatarShape = 'circle',
+    avatarSize = 'md'
   } = widget.data;
   const [imgFailed, setImgFailed] = useState(false);
   const ringColor = accent || '#5865F2';
@@ -121,17 +123,30 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss }
     end: 'items-end',
   }[textAlign] || 'items-start';
 
+  const sizeClass = {
+    sm: 'h-16 w-16',
+    md: 'h-20 w-20',
+    lg: 'h-28 w-28',
+    xl: 'h-36 w-36',
+  }[avatarSize] || 'h-20 w-20';
+
+  const shapeClass = {
+    circle: 'rounded-full',
+    squircle: 'rounded-2xl',
+    square: 'rounded-lg',
+  }[avatarShape] || 'rounded-full';
+
   return (
     <div className={`flex h-full w-full gap-4 p-6 ${containerClasses} ${textAlignClass} ${alignmentClass} justify-center`}>
       <div className="relative shrink-0">
         {pulseWhenPlaying && musicPlaying && (
           <span
-            className="absolute inset-0 rounded-full border-2 animate-pulse-ring"
+            className={`absolute inset-0 border-2 animate-pulse-ring ${shapeClass}`}
             style={{ borderColor: ringColor }}
           />
         )}
         <div
-          className="relative h-20 w-20 overflow-hidden rounded-full border border-white/10 bg-ink-700"
+          className={`relative overflow-hidden border border-white/10 bg-ink-700 ${sizeClass} ${shapeClass}`}
           style={{ boxShadow: `0 0 40px ${hex(ringColor, 0.2)}` }}
         >
           {avatarUrl && !imgFailed ? (
@@ -177,22 +192,15 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss }
   );
 }
 
-/** Small Nitro-branded pill — gradient + lightning glyph. */
+/** Official Discord Nitro icon */
 function NitroBadge({ accent }) {
-  const accentColor = accent || '#5865F2';
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-[0_0_14px_rgba(88,101,242,0.45)]"
-      style={{
-        background: `linear-gradient(135deg, #ff73fa 0%, ${accentColor} 50%, #3ba9ff 100%)`,
-      }}
+    <img
+      src="https://cdn.discordapp.com/badges/2ba85e8026a8614b640c2837bcdfe21b.png"
+      alt="Discord Nitro"
       title="Discord Nitro"
-    >
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
-      </svg>
-      Nitro
-    </span>
+      className="h-6 w-6 object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+    />
   );
 }
 

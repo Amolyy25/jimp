@@ -42,6 +42,8 @@ export const WIDGET_CATALOG = {
       bio: 'A tiny corner of the internet.',
       pulseWhenPlaying: true,
       hasNitro: false,
+      avatarSize: 'md',
+      avatarShape: 'circle',
     },
   },
   badges: {
@@ -214,6 +216,14 @@ export const WIDGET_CATALOG = {
       increment: 1,
       target: 100,
     },
+  },
+  group: {
+    type: 'group',
+    label: 'Groupe / Conteneur',
+    defaultPos: { x: 10, y: 10 },
+    defaultSize: { w: 40, h: 40 },
+    style: { ...baseStyle(), bgOpacity: 0.05, autoSize: false },
+    data: { title: 'Nouveau groupe', enable3D: false },
   },
 };
 

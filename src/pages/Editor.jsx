@@ -279,6 +279,20 @@ export default function Editor() {
     [setProfile],
   );
 
+  const updateWidgets = useCallback(
+    (updates) => {
+      setProfile((prev) => {
+        const nextWidgets = prev.widgets.map((w) => {
+          const up = updates.find((u) => u.id === w.id);
+          if (up) return { ...w, ...up.patch };
+          return w;
+        });
+        return { ...prev, widgets: nextWidgets };
+      });
+    },
+    [setProfile]
+  );
+
   const updateWidgetStyle = useCallback(
     (id, patch) =>
       setProfile((prev) => ({
@@ -434,7 +448,7 @@ export default function Editor() {
             profile={profile}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onWidgetMove={(id, pos) => updateWidget(id, { pos })}
+            onWidgetsMove={updateWidgets}
             onWidgetResize={(id, size) => updateWidget(id, { size })}
           />
         </MusicPlayer>
@@ -485,6 +499,7 @@ export default function Editor() {
         onUpdateMusic={updateMusic}
         onUpdateWidgetData={updateWidgetData}
         onUpdateWidgetStyle={updateWidgetStyle}
+        onUpdateWidget={updateWidget}
         me={me}
         onSlugClaimed={handleSlugClaimed}
         onApplyTemplate={(tpl) => setPendingTemplate(tpl)}

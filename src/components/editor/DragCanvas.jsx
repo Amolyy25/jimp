@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useSpring, useTransform, useMotionValue } from 'framer-motion';
 import BackgroundLayer from '../BackgroundLayer.jsx';
 import WidgetFrame from '../widgets/WidgetFrame.jsx';
 import { WIDGET_REGISTRY } from '../widgets/index.js';
@@ -30,7 +31,7 @@ export default function DragCanvas({
   profile,
   selectedId,
   onSelect,
-  onWidgetMove,
+  onWidgetsMove,
   onWidgetResize,
 }) {
   const canvasRef = useRef(null);   // full outer div — click-empty-to-deselect
@@ -76,7 +77,16 @@ export default function DragCanvas({
           profile.widgets,
           auto,
         );
-        onWidgetMove(s.widget.id, { x: round2(x), y: round2(y) });
+        
+        const updates = [{ id: s.widget.id, patch: { pos: { x: round2(x), y: round2(y) } } }];
+        if (s.groupOrigins && s.groupOrigins.length > 0) {
+            const actualDx = x - s.origin.x;
+            const actualDy = y - s.origin.y;
+            s.groupOrigins.forEach(go => {
+                updates.push({ id: go.id, patch: { pos: { x: round2(go.x + actualDx), y: round2(go.y + actualDy) } } });
+            });
+        }
+        onWidgetsMove(updates);
         setGuides(activeGuides);
       } else if (s.mode === 'resize') {
         const nw = clamp(s.origin.w + dxPct, 6, 100 - s.widget.pos.x);
@@ -102,7 +112,7 @@ export default function DragCanvas({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [onWidgetMove, onWidgetResize, profile.widgets, redraw]);
+  }, [onWidgetsMove, onWidgetResize, profile.widgets, redraw]);
 
   const startDrag = useCallback(
     (e, widget, mode) => {
@@ -118,6 +128,9 @@ export default function DragCanvas({
           mode === 'move'
             ? { x: widget.pos.x, y: widget.pos.y }
             : { w: widget.size.w, h: widget.size.h },
+        groupOrigins: mode === 'move' && widget.type === 'group' 
+            ? profile.widgets.filter(w => w.groupId === widget.id).map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y })) 
+            : [],
       };
       document.body.style.cursor = mode === 'resize' ? 'nwse-resize' : 'grabbing';
       document.body.style.userSelect = 'none';
@@ -154,76 +167,42 @@ export default function DragCanvas({
           ref={gridRef}
           className="relative aspect-video h-full max-h-full w-auto max-w-full"
         >
-          {visibleWidgets.map((widget, i) => {
-            const isSelected = widget.id === selectedId;
-            const auto = !!widget.style?.autoSize;
-            // When autoSize is on, `pos` is the centre of the widget and
-            // size becomes a max bound — the box hugs its content.
-            const wrapperStyle = auto
-              ? {
-                  left: `${widget.pos.x}%`,
-                  top: `${widget.pos.y}%`,
-                  transform: 'translate(-50%, -50%)',
-                  maxWidth: `${widget.size.w}%`,
-                  maxHeight: `${widget.size.h}%`,
-                  boxShadow: isSelected
-                    ? '0 0 0 1.5px rgba(88,101,242,0.9), 0 0 30px rgba(88,101,242,0.25)'
-                    : undefined,
-                  borderRadius: `${widget.style?.borderRadius ?? 16}px`,
-                }
-              : {
-                  left: `${widget.pos.x}%`,
-                  top: `${widget.pos.y}%`,
-                  width: `${widget.size.w}%`,
-                  height: `${widget.size.h}%`,
-                  boxShadow: isSelected
-                    ? '0 0 0 1.5px rgba(88,101,242,0.9), 0 0 30px rgba(88,101,242,0.25)'
-                    : undefined,
-                  borderRadius: `${widget.style?.borderRadius ?? 16}px`,
-                };
+          {(() => {
+            const groups = visibleWidgets.filter((w) => w.type === 'group');
+            const groupIds = groups.map(g => g.id);
+            const rootWidgets = visibleWidgets.filter((w) => w.type === 'group' || (!w.groupId) || (!groupIds.includes(w.groupId)));
 
-            return (
-              <div
-                key={widget.id}
-                className={[
-                  'group absolute select-none transition-shadow',
-                  isSelected ? 'z-30' : 'z-20',
-                ].join(' ')}
-                style={wrapperStyle}
-                onPointerDown={(e) => startDrag(e, widget, 'move')}
-              >
-                {(widget.style?.bgOpacity ?? 0) < 0.03 && !isSelected && (
-                  <div className="pointer-events-none absolute inset-0 rounded-[inherit] border border-dashed border-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                )}
-
-                <div className="pointer-events-none h-full w-full">
-                  <WidgetFrame widget={widget} mode="edit" index={i}>
-                    <WidgetPreview widget={widget} accent={accent} accentCss={accentCss} />
-                  </WidgetFrame>
-                </div>
-
-                {isSelected && (
-                  <div className="pointer-events-none absolute -top-7 left-0 flex items-center gap-1.5 rounded-md bg-discord px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-md">
-                    <DragDots /> {widget.type}
-                    {auto && (
-                      <span className="opacity-70">· auto</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Resize handle — only meaningful when the widget has a
-                    fixed size. In autoSize mode the box hugs its content
-                    so we hide the handle entirely. */}
-                {isSelected && !auto && (
-                  <span
-                    onPointerDown={(e) => startDrag(e, widget, 'resize')}
-                    className="absolute -bottom-1.5 -right-1.5 z-40 flex h-5 w-5 cursor-nwse-resize items-center justify-center rounded-full border-2 border-ink-950 bg-discord"
-                    title="Resize"
-                  />
-                )}
-              </div>
-            );
-          })}
+            return rootWidgets.map((widget, i) => {
+               if (widget.type === 'group') {
+                  const children = visibleWidgets.filter(w => w.groupId === widget.id);
+                  return (
+                    <GroupLayer 
+                      key={widget.id}
+                      groupWidget={widget}
+                      childWidgets={children}
+                      isSelected={widget.id === selectedId}
+                      selectedId={selectedId}
+                      startDrag={startDrag}
+                      accent={accent}
+                      accentCss={accentCss}
+                      index={i}
+                    />
+                  );
+               }
+               
+               return (
+                 <WidgetNode 
+                   key={widget.id}
+                   widget={widget}
+                   isSelected={widget.id === selectedId}
+                   startDrag={startDrag}
+                   accent={accent}
+                   accentCss={accentCss}
+                   index={i}
+                 />
+               );
+            });
+          })()}
 
           {/* Guides live inside the grid so their % coordinates match the
               widgets'. */}
@@ -235,6 +214,135 @@ export default function DragCanvas({
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-discord" />
         Live preview · 16:9 canvas · matches /:slug exactly
       </div>
+    </div>
+  );
+}
+
+function GroupLayer({ groupWidget, childWidgets, isSelected, selectedId, startDrag, accent, accentCss, index }) {
+  const auto = !!groupWidget.style?.autoSize;
+  const enable3D = groupWidget.data?.enable3D;
+
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const mouseXSpring = useSpring(x, { stiffness: 150, damping: 20 });
+  const mouseYSpring = useSpring(y, { stiffness: 150, damping: 20 });
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['15deg', '-15deg']);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-15deg', '15deg']);
+
+  const onMouseMove = (e) => {
+    if (!enable3D) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    x.set(mouseX / width - 0.5);
+    y.set(mouseY / height - 0.5);
+  };
+  const onMouseLeave = () => {
+    if (!enable3D) return;
+    x.set(0);
+    y.set(0);
+  };
+
+  const cx = auto ? groupWidget.pos.x : groupWidget.pos.x + groupWidget.size.w / 2;
+  const cy = auto ? groupWidget.pos.y : groupWidget.pos.y + groupWidget.size.h / 2;
+
+  const isChildSelected = childWidgets.some(w => w.id === selectedId);
+
+  return (
+    <motion.div 
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        transformOrigin: `${cx}% ${cy}%`,
+        perspective: enable3D ? 1000 : 'none',
+        rotateX: enable3D ? rotateX : 0,
+        rotateY: enable3D ? rotateY : 0,
+        zIndex: isSelected || isChildSelected ? 30 : 20,
+      }}
+    >
+      <WidgetNode 
+        widget={groupWidget} 
+        isSelected={isSelected} 
+        startDrag={startDrag} 
+        accent={accent} 
+        accentCss={accentCss} 
+        index={index}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+      />
+      {childWidgets.map((w, j) => (
+        <WidgetNode 
+          key={w.id} 
+          widget={w} 
+          isSelected={w.id === selectedId} 
+          startDrag={startDrag} 
+          accent={accent} 
+          accentCss={accentCss} 
+          index={index + 1 + j}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, index, onMouseMove, onMouseLeave }) {
+  const auto = !!widget.style?.autoSize;
+  const wrapperStyle = auto
+    ? {
+        left: `${widget.pos.x}%`,
+        top: `${widget.pos.y}%`,
+        transform: 'translate(-50%, -50%)',
+        maxWidth: `${widget.size.w}%`,
+        maxHeight: `${widget.size.h}%`,
+        boxShadow: isSelected
+          ? '0 0 0 1.5px rgba(88,101,242,0.9), 0 0 30px rgba(88,101,242,0.25)'
+          : undefined,
+        borderRadius: `${widget.style?.borderRadius ?? 16}px`,
+      }
+    : {
+        left: `${widget.pos.x}%`,
+        top: `${widget.pos.y}%`,
+        width: `${widget.size.w}%`,
+        height: `${widget.size.h}%`,
+        boxShadow: isSelected
+          ? '0 0 0 1.5px rgba(88,101,242,0.9), 0 0 30px rgba(88,101,242,0.25)'
+          : undefined,
+        borderRadius: `${widget.style?.borderRadius ?? 16}px`,
+      };
+
+  return (
+    <div
+      className={['group absolute select-none transition-shadow pointer-events-auto', isSelected ? 'z-30' : 'z-20'].join(' ')}
+      style={wrapperStyle}
+      onPointerDown={(e) => startDrag(e, widget, 'move')}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+    >
+      {(widget.style?.bgOpacity ?? 0) < 0.03 && !isSelected && (
+        <div className="pointer-events-none absolute inset-0 rounded-[inherit] border border-dashed border-white/10 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+      )}
+
+      <div className="pointer-events-none h-full w-full">
+        <WidgetFrame widget={widget} mode="edit" index={index}>
+          <WidgetPreview widget={widget} accent={accent} accentCss={accentCss} />
+        </WidgetFrame>
+      </div>
+
+      {isSelected && (
+        <div className="pointer-events-none absolute -top-7 left-0 flex items-center gap-1.5 rounded-md bg-discord px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-md">
+          <DragDots /> {widget.type}
+          {auto && <span className="opacity-70">· auto</span>}
+        </div>
+      )}
+
+      {isSelected && !auto && (
+        <span
+          onPointerDown={(e) => startDrag(e, widget, 'resize')}
+          className="absolute -bottom-1.5 -right-1.5 z-40 flex h-5 w-5 cursor-nwse-resize items-center justify-center rounded-full border-2 border-ink-950 bg-discord"
+          title="Resize"
+        />
+      )}
     </div>
   );
 }

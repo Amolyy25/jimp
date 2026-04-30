@@ -6,9 +6,26 @@ import TextInput from './controls/TextInput.jsx';
  * Per-widget visual style.
  * Any change is applied live — there's no save step.
  */
-export default function StylePanel({ style, onUpdate }) {
+export default function StylePanel({ style, onUpdate, profile, widget, onUpdateWidget }) {
+  const groups = profile?.widgets?.filter(w => w.type === 'group') || [];
+
   return (
     <div className="space-y-5">
+      {widget && widget.type !== 'group' && groups.length > 0 && (
+        <section className="space-y-3">
+          <SectionTitle>Groupement</SectionTitle>
+          <TextInput
+            label="Appartient au groupe"
+            value={widget.groupId || ''}
+            onChange={(v) => onUpdateWidget({ groupId: v || null })}
+            options={[
+              { value: '', label: 'Aucun' },
+              ...groups.map(g => ({ value: g.id, label: g.data?.title || 'Groupe (sans nom)' }))
+            ]}
+          />
+        </section>
+      )}
+
       <section className="space-y-3">
         <SectionTitle>Background</SectionTitle>
         <ColorInput

@@ -38,6 +38,8 @@ export default function WidgetPanel({ widget, onUpdate }) {
       return <QAForm data={widget.data} onUpdate={onUpdate} />;
     case 'clickerGame':
       return <ClickerGameForm data={widget.data} onUpdate={onUpdate} />;
+    case 'group':
+      return <GroupForm data={widget.data} onUpdate={onUpdate} />;
     default:
       return (
         <p className="text-xs text-white/40">No editor for this widget yet.</p>
@@ -171,6 +173,30 @@ function AvatarForm({ data, onUpdate }) {
             { value: 'start', label: 'Left' },
             { value: 'center', label: 'Center' },
             { value: 'end', label: 'Right' },
+          ]}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <TextInput
+          label="Avatar Size"
+          value={data.avatarSize || 'md'}
+          onChange={(v) => onUpdate({ avatarSize: v })}
+          options={[
+            { value: 'sm', label: 'Small' },
+            { value: 'md', label: 'Medium' },
+            { value: 'lg', label: 'Large' },
+            { value: 'xl', label: 'Extra Large' },
+          ]}
+        />
+        <TextInput
+          label="Avatar Shape"
+          value={data.avatarShape || 'circle'}
+          onChange={(v) => onUpdate({ avatarShape: v })}
+          options={[
+            { value: 'circle', label: 'Circle' },
+            { value: 'squircle', label: 'Squircle' },
+            { value: 'square', label: 'Square' },
           ]}
         />
       </div>
@@ -682,6 +708,28 @@ function VisitorCounterForm({ data, onUpdate }) {
         The counter is stored in the viewer's own browser (localStorage) — it
         reflects their visits on their device, not a global count. Cosmetic on
         purpose.
+      </p>
+    </div>
+  );
+}
+
+function GroupForm({ data, onUpdate }) {
+  return (
+    <div className="space-y-3">
+      <TextInput
+        label="Nom du groupe"
+        value={data.title || ''}
+        onChange={(v) => onUpdate({ title: v })}
+        placeholder="Mon groupe"
+      />
+      <ToggleRow
+        title="Effet 3D au survol"
+        subtitle="Le groupe et ses enfants s'inclineront avec la souris."
+        checked={!!data.enable3D}
+        onChange={(v) => onUpdate({ enable3D: v })}
+      />
+      <p className="text-[11px] leading-relaxed text-white/40">
+        Utilisez ce widget comme un conteneur. Allez dans le panneau de style de vos autres widgets pour les lier à ce groupe. Lorsqu'ils sont liés, déplacer le groupe déplacera aussi les widgets.
       </p>
     </div>
   );

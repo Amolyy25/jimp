@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useSpring, useTransform, useMotionValue } from 'framer-motion';
 import BackgroundLayer from '../components/BackgroundLayer.jsx';
 import MusicPlayer from '../components/MusicPlayer.jsx';
 import SplashScreen from '../components/SplashScreen.jsx';
@@ -224,80 +224,43 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
       ) : (
         <div className="fixed inset-0 z-10 flex items-center justify-center overflow-hidden p-4">
           <div className="relative aspect-video h-full max-h-full w-auto max-w-full">
-            {profile.widgets
-              .filter((w) => w.visible !== false)
-              .map((w, i) => {
-                const Comp = WIDGET_REGISTRY[w.type]?.component;
-                if (!Comp) return null;
+            {(() => {
+              const groups = visibleWidgets.filter((w) => w.type === 'group');
+              const groupIds = groups.map(g => g.id);
+              const rootWidgets = visibleWidgets.filter((w) => w.type === 'group' || (!w.groupId) || (!groupIds.includes(w.groupId)));
 
-                // The absolute-positioned children inside a fixed container
-                // play badly with `whileInView` — framer-motion sometimes
-                // fails to fire the intersection, leaving widgets stuck at
-                // `initial` (opacity: 0). We animate on mount instead, with
-                // a tiny stagger so things still feel lively.
-                const animation = w.style?.animation || 'fade-up';
-                const variants = {
-                  none: { opacity: 0, y: 0, x: 0, scale: 1 },
-                  'fade-up': { opacity: 0, y: 12, x: 0, scale: 1 },
-                  'fade-in': { opacity: 0, y: 0, x: 0, scale: 1 },
-                  'zoom-in': { opacity: 0, y: 0, x: 0, scale: 0.92 },
-                  'slide-right': { opacity: 0, y: 0, x: -20, scale: 1 },
-                  bounce: { opacity: 0, y: 24, x: 0, scale: 0.85 },
-                };
-
-                const transition = {
-                  type: animation === 'bounce' ? 'spring' : 'tween',
-                  duration: 0.5,
-                  ease: [0.22, 1, 0.36, 1],
-                  delay: Math.min(i * 0.05, 0.5),
-                  bounce: animation === 'bounce' ? 0.4 : 0,
-                };
-
-                // Mirror the editor: when a widget opts into autoSize, pos
-                // becomes the widget's centre and size becomes a max bound,
-                // so adding items grows the box symmetrically around the
-                // anchor instead of overflowing.
-                const auto = !!w.style?.autoSize;
-                const layoutStyle = auto
-                  ? {
-                      left: `${w.pos.x}%`,
-                      top: `${w.pos.y}%`,
-                      // CSS centring lives on the OUTER div so framer-motion
-                      // (which manages `transform` internally on the inner
-                      // motion.div) doesn't strip it during the animation.
-                      transform: 'translate(-50%, -50%)',
-                      maxWidth: `${w.size.w}%`,
-                      maxHeight: `${w.size.h}%`,
-                    }
-                  : {
-                      left: `${w.pos.x}%`,
-                      top: `${w.pos.y}%`,
-                      width: `${w.size.w}%`,
-                      height: `${w.size.h}%`,
-                    };
-
-                return (
-                  <div key={w.id} className="absolute" style={layoutStyle}>
-                    <motion.div
-                      className={auto ? '' : 'h-full w-full'}
-                      initial={variants[animation] || variants['fade-up']}
-                      animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
-                      transition={transition}
-                    >
-                      <WidgetFrame widget={w} mode="view">
-                        <Comp
-                          widget={w}
-                          musicPlaying={playing}
-                          accent={accent}
-                          accentCss={accentCss}
-                          ownerId={ownerId}
-                          slug={slug}
-                        />
-                      </WidgetFrame>
-                    </motion.div>
-                  </div>
-                );
-              })}
+              return rootWidgets.map((w, i) => {
+                 if (w.type === 'group') {
+                    const children = visibleWidgets.filter(child => child.groupId === w.id);
+                    return (
+                      <GroupLayerView 
+                        key={w.id}
+                        groupWidget={w}
+                        childWidgets={children}
+                        accent={accent}
+                        accentCss={accentCss}
+                        ownerId={ownerId}
+                        slug={slug}
+                        playing={playing}
+                        index={i}
+                      />
+                    );
+                 }
+                 
+                 return (
+                   <WidgetNodeView 
+                     key={w.id}
+                     w={w}
+                     i={i}
+                     accent={accent}
+                     accentCss={accentCss}
+                     ownerId={ownerId}
+                     slug={slug}
+                     playing={playing}
+                   />
+                 );
+              });
+            })()}
           </div>
         </div>
       )}
@@ -313,6 +276,140 @@ function renderWidget(widget, ctx) {
   const Component = WIDGET_REGISTRY[widget.type]?.component;
   if (!Component) return null;
   return <Component widget={widget} {...ctx} />;
+}
+
+function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, index }) {
+  const auto = !!groupWidget.style?.autoSize;
+  const enable3D = groupWidget.data?.enable3D;
+
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const mouseXSpring = useSpring(x, { stiffness: 150, damping: 20 });
+  const mouseYSpring = useSpring(y, { stiffness: 150, damping: 20 });
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['15deg', '-15deg']);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-15deg', '15deg']);
+
+  const onMouseMove = (e) => {
+    if (!enable3D) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    x.set(mouseX / width - 0.5);
+    y.set(mouseY / height - 0.5);
+  };
+  const onMouseLeave = () => {
+    if (!enable3D) return;
+    x.set(0);
+    y.set(0);
+  };
+
+  const cx = auto ? groupWidget.pos.x : groupWidget.pos.x + groupWidget.size.w / 2;
+  const cy = auto ? groupWidget.pos.y : groupWidget.pos.y + groupWidget.size.h / 2;
+
+  return (
+    <motion.div 
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        transformOrigin: `${cx}% ${cy}%`,
+        perspective: enable3D ? 1000 : 'none',
+        rotateX: enable3D ? rotateX : 0,
+        rotateY: enable3D ? rotateY : 0,
+        zIndex: 20,
+      }}
+    >
+      <WidgetNodeView 
+        w={groupWidget} 
+        i={index}
+        accent={accent} 
+        accentCss={accentCss} 
+        ownerId={ownerId}
+        slug={slug}
+        playing={playing}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+      />
+      {childWidgets.map((w, j) => (
+        <WidgetNodeView 
+          key={w.id} 
+          w={w} 
+          i={index + 1 + j}
+          accent={accent} 
+          accentCss={accentCss} 
+          ownerId={ownerId}
+          slug={slug}
+          playing={playing}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, onMouseMove, onMouseLeave }) {
+  const Comp = WIDGET_REGISTRY[w.type]?.component;
+  if (!Comp) return null;
+
+  const animation = w.style?.animation || 'fade-up';
+  const variants = {
+    none: { opacity: 0, y: 0, x: 0, scale: 1 },
+    'fade-up': { opacity: 0, y: 12, x: 0, scale: 1 },
+    'fade-in': { opacity: 0, y: 0, x: 0, scale: 1 },
+    'zoom-in': { opacity: 0, y: 0, x: 0, scale: 0.92 },
+    'slide-right': { opacity: 0, y: 0, x: -20, scale: 1 },
+    bounce: { opacity: 0, y: 24, x: 0, scale: 0.85 },
+  };
+
+  const transition = {
+    type: animation === 'bounce' ? 'spring' : 'tween',
+    duration: 0.5,
+    ease: [0.22, 1, 0.36, 1],
+    delay: Math.min(i * 0.05, 0.5),
+    bounce: animation === 'bounce' ? 0.4 : 0,
+  };
+
+  const auto = !!w.style?.autoSize;
+  const layoutStyle = auto
+    ? {
+        left: `${w.pos.x}%`,
+        top: `${w.pos.y}%`,
+        transform: 'translate(-50%, -50%)',
+        maxWidth: `${w.size.w}%`,
+        maxHeight: `${w.size.h}%`,
+      }
+    : {
+        left: `${w.pos.x}%`,
+        top: `${w.pos.y}%`,
+        width: `${w.size.w}%`,
+        height: `${w.size.h}%`,
+      };
+
+  return (
+    <div 
+      className="absolute pointer-events-auto" 
+      style={layoutStyle}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+    >
+      <motion.div
+        className={auto ? '' : 'h-full w-full'}
+        initial={variants[animation] || variants['fade-up']}
+        animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+        transition={transition}
+      >
+        <WidgetFrame widget={w} mode="view">
+          <Comp
+            widget={w}
+            musicPlaying={playing}
+            accent={accent}
+            accentCss={accentCss}
+            ownerId={ownerId}
+            slug={slug}
+          />
+        </WidgetFrame>
+      </motion.div>
+    </div>
+  );
 }
 
 /** Subtle "Made with" pill and Report button, bottom. */
