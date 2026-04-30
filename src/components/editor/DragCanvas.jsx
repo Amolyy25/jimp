@@ -94,7 +94,28 @@ export default function DragCanvas({
       } else if (s.mode === 'resize') {
         const nw = clamp(s.origin.w + dxPct, 6, 100 - s.widget.pos.x);
         const nh = clamp(s.origin.h + dyPct, 5, 100 - s.widget.pos.y);
-        onWidgetResize(s.widget.id, { w: round2(nw), h: round2(nh) });
+        const scaleX = nw / s.origin.w;
+        const scaleY = nh / s.origin.h;
+        
+        const updates = [{ id: s.widget.id, patch: { size: { w: round2(nw), h: round2(nh) } } }];
+        
+        if (s.widget.type === 'group' && s.groupOrigins && s.groupOrigins.length > 0) {
+            s.groupOrigins.forEach(go => {
+                if (go.id === s.widget.id) return;
+                
+                const relX = go.x - s.origin.x;
+                const relY = go.y - s.origin.y;
+                
+                const newX = s.origin.x + (relX * scaleX);
+                const newY = s.origin.y + (relY * scaleY);
+                const newW = go.w * scaleX;
+                const newH = go.h * scaleY;
+                
+                updates.push({ id: go.id, patch: { pos: { x: round2(newX), y: round2(newY) }, size: { w: round2(newW), h: round2(newH) } } });
+            });
+        }
+        
+        onWidgetsMove(updates);
       }
       redraw();
     }
@@ -148,8 +169,8 @@ export default function DragCanvas({
           mode === 'move'
             ? { x: widget.pos.x, y: widget.pos.y }
             : { w: widget.size.w, h: widget.size.h },
-        groupOrigins: mode === 'move' 
-            ? allDraggedWidgets.map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y })) 
+        groupOrigins: (mode === 'move' || (mode === 'resize' && widget.type === 'group'))
+            ? allDraggedWidgets.map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y, w: w.size.w, h: w.size.h })) 
             : [],
       };
       document.body.style.cursor = mode === 'resize' ? 'nwse-resize' : 'grabbing';
@@ -319,7 +340,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
 }
 
 function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, index }) {
-  const auto = !!widget.style?.autoSize;
+  const auto = !!widget.style?.autoSize && widget.type !== 'group';
   const wrapperStyle = auto
     ? {
         left: `${widget.pos.x}%`,

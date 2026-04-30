@@ -397,11 +397,53 @@ export default function Editor() {
   const updateWidgets = useCallback(
     (updates) => {
       setProfile((prev) => {
-        const nextWidgets = prev.widgets.map((w) => {
+        let nextWidgets = prev.widgets.map((w) => {
           const up = updates.find((u) => u.id === w.id);
           if (up) return { ...w, ...up.patch };
           return w;
         });
+
+        const updatedIds = new Set(updates.map(u => u.id));
+        const groupsToUpdate = new Set();
+        nextWidgets.forEach(w => {
+           if (w.groupId && updatedIds.has(w.id)) {
+              groupsToUpdate.add(w.groupId);
+           }
+        });
+
+        groupsToUpdate.forEach(groupId => {
+           const groupIndex = nextWidgets.findIndex(w => w.id === groupId);
+           if (groupIndex === -1) return;
+           const group = nextWidgets[groupIndex];
+           if (!group.style?.autoSize) return;
+
+           const children = nextWidgets.filter(w => w.groupId === groupId);
+           if (children.length > 0) {
+              let minX = 100, minY = 100, maxX = 0, maxY = 0;
+              children.forEach(w => {
+                 const left = w.pos.x;
+                 const top = w.pos.y;
+                 const right = w.pos.x + w.size.w;
+                 const bottom = w.pos.y + w.size.h;
+                 if (left < minX) minX = left;
+                 if (top < minY) minY = top;
+                 if (right > maxX) maxX = right;
+                 if (bottom > maxY) maxY = bottom;
+              });
+              const padding = 2;
+              minX = Math.max(0, minX - padding);
+              minY = Math.max(0, minY - padding);
+              maxX = Math.min(100, maxX + padding);
+              maxY = Math.min(100, maxY + padding);
+              
+              nextWidgets[groupIndex] = {
+                 ...group,
+                 pos: { x: Number(minX.toFixed(2)), y: Number(minY.toFixed(2)) },
+                 size: { w: Number((maxX - minX).toFixed(2)), h: Number((maxY - minY).toFixed(2)) }
+              };
+           }
+        });
+
         return { ...prev, widgets: nextWidgets };
       });
     },

@@ -379,7 +379,7 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing }) {
     bounce: animation === 'bounce' ? 0.4 : 0,
   };
 
-  const auto = !!w.style?.autoSize;
+  const auto = !!w.style?.autoSize && w.type !== 'group';
   const layoutStyle = auto
     ? {
         left: `${w.pos.x}%`,
