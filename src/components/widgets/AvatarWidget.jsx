@@ -7,7 +7,7 @@ import { useScrambleText } from '../../hooks/useScrambleText.js';
  * letter-spaced bio underneath. Optional Nitro badge sits next to the name.
  * A pulsing ring surrounds the avatar while music plays.
  */
-export default function AvatarWidget({ widget, musicPlaying, accent }) {
+export default function AvatarWidget({ widget, musicPlaying, accent, accentCss }) {
   const { 
     layout = 'center', 
     textAlign = 'center',
@@ -40,39 +40,72 @@ export default function AvatarWidget({ widget, musicPlaying, accent }) {
     return `rgba(${r},${g},${b},${alpha})`;
   };
 
+  // Build the CSS the username <h1> needs for each effect.
+  //
+  // Two important quirks we work around:
+  //   - WidgetFrame applies `overflow: hidden` (rounded corners) so any
+  //     text-shadow that bleeds past the frame gets clipped to a hard
+  //     rectangle. Glow/neon halos must therefore stay tight & soft enough
+  //     not to fill the available padding, otherwise they read as a solid
+  //     coloured background.
+  //   - For gradient text we use `background-image` (NOT the `background`
+  //     shorthand, which resets background-clip) and supply both the
+  //     prefixed and unprefixed `background-clip: text` for cross-browser
+  //     reliability. We also avoid `display: inline-block` because it
+  //     interacts badly with the `truncate` utility on flex children.
   const getTextStyle = () => {
-    const styles = { 
+    const styles = {
       color: 'white',
       fontFamily: widget.style?.fontFamily || 'inherit',
     };
 
     if (textEffect === 'glow') {
-      // Smoother, professional multi-layered glow
+      // Soft halo — single wide blur, low alpha. Stays well inside the
+      // frame's overflow rect at typical widget sizes so it never reads as
+      // a flat tint.
       styles.textShadow = `
-        0 0 8px ${hexToRgba(ringColor, 0.8)},
-        0 0 16px ${hexToRgba(ringColor, 0.4)},
-        0 0 32px ${hexToRgba(ringColor, 0.2)}
+        0 0 4px ${hexToRgba(ringColor, 0.45)},
+        0 0 14px ${hexToRgba(ringColor, 0.22)}
       `;
     } else if (textEffect === 'neon') {
-      styles.textShadow = `0 0 5px #fff, 0 0 10px #fff, 0 0 20px ${ringColor}, 0 0 40px ${ringColor}, 0 0 80px ${ringColor}`;
+      // Tighter than before — the previous 80px outer layer was getting
+      // clipped into a square by overflow-hidden.
+      styles.textShadow = `
+        0 0 3px #fff,
+        0 0 7px #fff,
+        0 0 14px ${hexToRgba(ringColor, 0.85)},
+        0 0 24px ${hexToRgba(ringColor, 0.5)}
+      `;
     } else if (textEffect === 'gradient') {
-      styles.background = `linear-gradient(to bottom, #fff 30%, ${ringColor} 100%)`;
+      // Honour the theme's full gradient when the user picked one in the
+      // Theme panel; otherwise fade from white into the accent so the
+      // effect still pops on a plain accent.
+      const themeGradient =
+        typeof accentCss === 'string' && accentCss.startsWith('linear-gradient(')
+          ? accentCss
+          : null;
+      styles.backgroundImage =
+        themeGradient ||
+        `linear-gradient(180deg, #ffffff 0%, ${ringColor} 100%)`;
+      styles.backgroundClip = 'text';
       styles.WebkitBackgroundClip = 'text';
+      styles.color = 'transparent';
       styles.WebkitTextFillColor = 'transparent';
-      styles.display = 'inline-block';
     } else if (textEffect === 'rainbow') {
-      styles.background = 'linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8f00ff)';
-      styles.backgroundSize = '200% auto';
+      styles.backgroundImage =
+        'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8f00ff, #ff0000)';
+      styles.backgroundSize = '200% 100%';
+      styles.backgroundClip = 'text';
       styles.WebkitBackgroundClip = 'text';
+      styles.color = 'transparent';
       styles.WebkitTextFillColor = 'transparent';
       styles.animation = 'rainbow 3s linear infinite';
-      styles.display = 'inline-block';
     } else if (textEffect === 'matrix') {
       styles.fontFamily = "'JetBrains Mono', monospace";
       styles.color = ringColor;
-      styles.textShadow = `0 0 10px ${hexToRgba(ringColor, 0.5)}`;
+      styles.textShadow = `0 0 8px ${hexToRgba(ringColor, 0.45)}`;
     }
-    
+
     return styles;
   };
 

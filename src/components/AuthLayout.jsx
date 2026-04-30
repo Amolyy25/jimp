@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Zap } from 'lucide-react';
+import logo from '../image/logo.jpeg';
 
 /**
  * AuthLayout — split-screen shell shared by Login and Register.
@@ -123,15 +124,11 @@ function BrandPane() {
       <div className="relative z-10 flex flex-1 flex-col justify-between p-10 xl:p-14">
         {/* Wordmark */}
         <Link to="/" className="flex items-center gap-2.5">
-          <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-discord">
-            <span
-              className="relative z-10 text-lg font-black italic text-white"
-              style={{ fontFamily: 'Bebas Neue, Inter' }}
-            >
-              P
-            </span>
-            <span className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
-          </div>
+          <img
+            src={logo}
+            alt="persn.me"
+            className="h-9 w-9 rounded-md object-cover ring-1 ring-white/10"
+          />
           <span
             className="text-2xl font-black leading-none tracking-tight"
             style={{ fontFamily: 'Bebas Neue' }}

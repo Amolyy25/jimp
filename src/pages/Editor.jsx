@@ -19,6 +19,7 @@ import { getDiscordImport, getMe, getMyProfile, logout, saveProfile } from '../u
 import { resolveAccent } from '../utils/theme.js';
 import HistoryDrawer from '../components/editor/HistoryDrawer.jsx';
 import TemplateConfirmModal from '../components/editor/TemplateConfirmModal.jsx';
+import logo from '../image/logo.jpeg';
 
 const STORAGE_KEY = 'persn:profile';
 const AUTOSAVE_DEBOUNCE_MS = 5000;
@@ -493,9 +494,11 @@ function TopBar({
     <div className="pointer-events-none absolute left-0 right-0 top-0 z-40 flex items-center justify-between px-6 py-5">
       <div className="pointer-events-auto flex items-center gap-3">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-discord to-indigo-500 font-bold text-white shadow-lg transition group-hover:brightness-110">
-            P
-          </div>
+          <img
+            src={logo}
+            alt="persn.me"
+            className="h-9 w-9 rounded-xl object-cover shadow-lg ring-1 ring-white/10 transition group-hover:brightness-110"
+          />
           <div>
             <div className="text-sm font-semibold tracking-tight">persn.me</div>
             <div className="eyebrow">Profile editor</div>

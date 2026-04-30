@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import BackgroundLayer from '../components/BackgroundLayer.jsx';
 import MusicPlayer from '../components/MusicPlayer.jsx';
 import SplashScreen from '../components/SplashScreen.jsx';
@@ -103,7 +103,9 @@ export default function View() {
     autoplay: profile?.music?.autoplay ?? false,
   };
 
-  const accentHex = profile ? resolveAccent(profile.theme?.accent).hex : '#5865F2';
+  const accentResolved = profile ? resolveAccent(profile.theme?.accent) : null;
+  const accentHex = accentResolved?.hex || '#5865F2';
+  const accentCss = accentResolved?.css || '#5865F2';
 
   return (
     <MusicPlayer music={musicConfig} accent={accentHex} readyToPlay={!splashEnabled || entered}>
@@ -117,7 +119,8 @@ export default function View() {
             <SplashScreen
               text={profile.theme.splash.text || 'Click to enter'}
               subtitle={profile.theme.splash.subtitle}
-              accent={profile.theme?.accent}
+              accent={accentHex}
+              accentCss={accentCss}
               onEnter={() => setEntered(true)}
               onDismiss={() => setSplashGone(true)}
             />
@@ -288,7 +291,8 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
         </div>
       )}
 
-      <MadeWithPersn />
+      <MadeWithPersn accent={accent} />
+      <CreateYoursToast accent={accent} accentCss={accentCss} />
     </div>
   );
 }
@@ -300,33 +304,173 @@ function renderWidget(widget, ctx) {
   return <Component widget={widget} {...ctx} />;
 }
 
-/** Tiny brand footer — "Made with persn.me" on the left, "Create yours" CTA on the right. */
-function MadeWithPersn() {
+/** Subtle "Made with" pill, bottom-left. Stays minimal so it doesn't fight
+ *  the profile content. */
+function MadeWithPersn({ accent = '#5865F2' }) {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 px-5 py-3">
       <div className="pointer-events-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/35">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-discord" />
+        <span
+          className="inline-block h-1.5 w-1.5 rounded-full"
+          style={{ background: accent }}
+        />
         Made with persn.me
       </div>
-      <Link
-        to="/editor"
-        className="pointer-events-auto group flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/70 backdrop-blur-md transition hover:border-discord/50 hover:bg-discord/20 hover:text-white"
-      >
-        Create yours
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          referrerPolicy="origin"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          className="transition-transform duration-300 group-hover:translate-x-0.5"
-        >
-          <path d="M5 12h14M13 6l6 6-6 6" />
-        </svg>
-      </Link>
     </div>
+  );
+}
+
+/**
+ * Bottom-center CTA that nudges visitors to claim their own profile. Slides
+ * up from below a couple seconds after the page lands, so it doesn't fight
+ * the entry animations. Dismissable; we remember the dismissal for the
+ * session so it doesn't pop up on every navigation. Always opens the
+ * canonical editor URL — even when the profile is served on a custom domain.
+ */
+function CreateYoursToast({ accent = '#5865F2', accentCss = '#5865F2' }) {
+  const [visible, setVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  // Convert any hex into rgba so we can dial alpha for the glow + icon tint.
+  const tint = (hex, alpha) => {
+    if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) {
+      return `rgba(88, 101, 242, ${alpha})`;
+    }
+    let h = hex.slice(1);
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      if (sessionStorage.getItem('persn:cta-dismissed') === '1') return;
+    } catch { /* private mode etc. — fall through and just show */ }
+    const id = setTimeout(() => {
+      if (!cancelled) setVisible(true);
+    }, 2400);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, []);
+
+  const handleDismiss = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDismissed(true);
+    setVisible(false);
+    try { sessionStorage.setItem('persn:cta-dismissed', '1'); } catch { /* ignore */ }
+  };
+
+  return (
+    <AnimatePresence>
+      {visible && !dismissed && (
+        <motion.div
+          key="cta-toast"
+          initial={{ opacity: 0, y: 90, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 70, scale: 0.94 }}
+          transition={{ type: 'spring', stiffness: 240, damping: 24, mass: 0.9 }}
+          className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4"
+          style={{
+            // Sit above iOS home indicator and any browser chrome.
+            bottom: 'max(1.25rem, env(safe-area-inset-bottom))',
+          }}
+        >
+          <a
+            href="https://www.persn.me/editor"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pointer-events-auto group relative flex w-full max-w-[420px] items-center gap-3 overflow-hidden rounded-2xl border bg-ink-900/85 px-4 py-3 shadow-[0_18px_60px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl transition sm:gap-4 sm:py-3.5"
+            style={{
+              borderColor: 'rgba(255,255,255,0.10)',
+              // Light up the border in the visitor's chosen accent on hover —
+              // CSS variable lets us toggle via group-hover without losing
+              // the dynamic colour.
+              ['--toast-accent']: accent,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = tint(accent, 0.5);
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+            }}
+          >
+            {/* Animated accent glow that sweeps on hover. Uses the full theme
+                accent (gradient or solid) so the bloom matches the page. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+              style={{
+                background: `radial-gradient(120% 80% at 50% 100%, ${tint(accent, 0.35)} 0%, transparent 65%)`,
+              }}
+            />
+
+            {/* Pulsing accent dot — tinted with the user's accent */}
+            <span
+              className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl"
+              style={{
+                background: tint(accent, 0.15),
+                boxShadow: `inset 0 0 0 1px ${tint(accent, 0.4)}`,
+              }}
+            >
+              <span
+                className="absolute inset-0 animate-ping rounded-xl opacity-40"
+                style={{ background: tint(accent, 0.3) }}
+              />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="relative">
+                <path d="M12 2v20M2 12h20" />
+              </svg>
+            </span>
+
+            <div className="min-w-0 flex-1 text-left">
+              <div className="flex items-baseline gap-2">
+                <span className="truncate text-[13px] font-semibold tracking-tight text-white">
+                  Don't have your own yet?
+                </span>
+              </div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
+                <span>Build it free on</span>
+                <span
+                  className="font-mono font-semibold"
+                  style={
+                    accentCss && accentCss.startsWith('linear-gradient(')
+                      ? {
+                          backgroundImage: accentCss,
+                          backgroundClip: 'text',
+                          WebkitBackgroundClip: 'text',
+                          color: 'transparent',
+                          WebkitTextFillColor: 'transparent',
+                        }
+                      : { color: accent }
+                  }
+                >
+                  persn.me
+                </span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-300 group-hover:translate-x-0.5">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDismiss}
+              aria-label="Dismiss"
+              className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </a>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

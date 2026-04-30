@@ -12,6 +12,7 @@ import {
   Lock,
   Check,
 } from 'lucide-react';
+import logo from '../image/logo.jpeg';
 
 /**
  * Landing page — "Terminal-editorial" aesthetic.
@@ -91,15 +92,11 @@ function NavLink({ href, children }) {
 function Wordmark() {
   return (
     <Link to="/" className="flex items-center gap-2.5">
-      <div className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-md bg-discord">
-        <span
-          className="relative z-10 text-lg font-black italic text-white"
-          style={{ fontFamily: 'Bebas Neue, Inter' }}
-        >
-          P
-        </span>
-        <span className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
-      </div>
+      <img
+        src={logo}
+        alt="persn.me"
+        className="h-8 w-8 rounded-md object-cover ring-1 ring-white/10"
+      />
       <div className="flex items-baseline gap-2">
         <span
           className="text-xl font-black leading-none tracking-tight"

@@ -15,9 +15,35 @@ export default function SplashScreen({
   text = 'Click to enter',
   subtitle = '',
   accent = '#5865F2',
+  accentCss,
   onDismiss,
   onEnter,
 }) {
+  // Tolerate the legacy shape where `accent` was the raw theme object — keep
+  // the splash colour-aware even before the caller migrates to passing the
+  // resolved hex/css pair.
+  const accentHex =
+    typeof accent === 'string'
+      ? accent
+      : accent?.kind === 'gradient'
+        ? accent.from || '#5865F2'
+        : accent?.value || '#5865F2';
+  const accentBackground =
+    accentCss ||
+    (typeof accent === 'object' && accent?.kind === 'gradient'
+      ? `linear-gradient(${accent.angle ?? 135}deg, ${accent.from || accentHex} 0%, ${accent.to || accentHex} 100%)`
+      : accentHex);
+  const tint = (hex, alpha) => {
+    if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) {
+      return `rgba(88,101,242,${alpha})`;
+    }
+    let h = hex.slice(1);
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
   const [visible, setVisible] = useState(true);
   const typed = useTypewriter(text, 45);
 
@@ -51,11 +77,14 @@ export default function SplashScreen({
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 z-[100] flex cursor-pointer flex-col items-center justify-center overflow-hidden bg-black"
         >
-          {/* Radial accent glow */}
+          {/* Radial accent glow — picks up the user's theme accent, gradient
+              or solid. We render it through a low-opacity wrapper so a vivid
+              gradient stays in the splash mood (deep, atmospheric) instead of
+              looking like a flat colour wash. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute h-[700px] w-[700px] rounded-full blur-[140px]"
-            style={{ background: `${accent}30` }}
+            className="pointer-events-none absolute h-[700px] w-[700px] rounded-full opacity-30 blur-[140px]"
+            style={{ background: accentBackground }}
           />
           <div
             aria-hidden
@@ -70,7 +99,7 @@ export default function SplashScreen({
             <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.32em] text-white/40">
               <span
                 className="inline-block h-1.5 w-1.5 animate-pulse rounded-full"
-                style={{ background: accent }}
+                style={{ background: accentBackground }}
               />
               Enter profile
             </div>
@@ -82,7 +111,7 @@ export default function SplashScreen({
               {typed}
               <span
                 className="inline-block w-[0.08em] animate-pulse"
-                style={{ background: accent, height: '0.8em' }}
+                style={{ background: accentBackground, height: '0.8em' }}
                 aria-hidden
               >
                 &nbsp;
