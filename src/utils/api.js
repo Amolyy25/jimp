@@ -320,4 +320,49 @@ export async function deleteGuestbookEntry(slug, entryId) {
   return data;
 }
 
+/* -------- Clicker game (global per-profile counter) -------- */
+
+export async function getClickerScore(slug) {
+  try {
+    const { data } = await api.get(`/clicker/${slug}`);
+    return data; // { score, rank, total }
+  } catch {
+    return { score: 0, rank: null, total: 0 };
+  }
+}
+
+/** Send a batch of clicks. Server caps `count` at 50. Returns updated state. */
+export async function postClickerBatch(slug, count) {
+  try {
+    const { data } = await api.post(`/clicker/${slug}`, { count });
+    return data; // { score, added, rank, total }
+  } catch {
+    return null;
+  }
+}
+
+export async function getClickerLeaderboard(limit = 50) {
+  try {
+    const { data } = await api.get(`/clicker/leaderboard?limit=${limit}`);
+    return data; // { entries, total }
+  } catch {
+    return { entries: [], total: 0 };
+  }
+}
+
+/* -------- Explore (public profile directory) -------- */
+
+export async function getExploreFeed({ page = 1, limit = 24, sort = 'recent' } = {}) {
+  try {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('limit', String(limit));
+    params.set('sort', sort);
+    const { data } = await api.get(`/explore?${params.toString()}`);
+    return data; // { entries, page, limit, total, hasMore }
+  } catch {
+    return { entries: [], page, limit, total: 0, hasMore: false };
+  }
+}
+
 export default api;

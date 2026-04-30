@@ -14,6 +14,7 @@ export const FORBIDDEN_SLUGS = new Set([
   'download', 'app', 'web', 'mobile', 'dev', 'developer', 'staging', 'prod',
   'root', 'home', 'index', 'search', 'find', 'explore', 'discover', 'trending',
   'popular', 'new', 'create', 'delete', 'update', 'remove', 'add', 'manage',
+  'clicker', 'leaderboard', 'ranking', 'sitemap', 'robots',
 
   // Offensive / Sensitive (Broad selection)
   'nigger', 'nigga', 'faggot', 'fag', 'kike', 'chink', 'gook', 'spic', 'retard',

@@ -33,6 +33,8 @@ import { renderProfileOg, invalidateOgCache } from './og.js';
 import { registerSpotifyRoutes } from './spotify.js';
 import { registerDiscordAuthRoutes } from './discordAuth.js';
 import { registerQuestionRoutes } from './questions.js';
+import { registerClickerRoutes } from './clicker.js';
+import { registerExploreRoutes } from './explore.js';
 import { sanitizeCustomCss } from './sanitizeCss.js';
 import { registerTwitchRoutes } from './twitch.js';
 import { registerImportRoutes } from './importLinktree.js';
@@ -511,6 +513,8 @@ registerVersionRoutes(app, prisma, authenticate, { writeLimiter });
 registerSocialRoutes(app, prisma, authenticate, { writeLimiter });
 registerAdminRoutes(app, prisma, authenticate);
 registerQuestionRoutes(app, prisma, authenticate, { writeLimiter });
+registerClickerRoutes(app, prisma, { ingestLimiter });
+registerExploreRoutes(app, prisma);
 
 app.get('/api/check-slug/:slug', async (req, res) => {
   const slug = (req.params.slug || '').toLowerCase();
@@ -521,6 +525,54 @@ app.get('/api/check-slug/:slug', async (req, res) => {
   }
   const profile = await prisma.profile.findUnique({ where: { slug } });
   res.json({ available: !profile });
+});
+
+/* -------------------------------------------------------------------------- */
+/* SEO: sitemap.xml — must sit before the SPA fallback                        */
+/* -------------------------------------------------------------------------- */
+
+// Cap: stay well under search engines' 50k-URLs / 50MB limit per sitemap.
+// If/when we cross 5k profiles we should split into a sitemap index instead.
+const SITEMAP_MAX_URLS = 5000;
+let sitemapCache = null; // { xml, expiresAt }
+const SITEMAP_TTL_MS = 60 * 60 * 1000;
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const now = Date.now();
+    if (sitemapCache && sitemapCache.expiresAt > now) {
+      res.set('Content-Type', 'application/xml; charset=utf-8');
+      res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+      return res.send(sitemapCache.xml);
+    }
+
+    const origin = publicOrigin(req);
+    const profiles = await prisma.profile.findMany({
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+      take: SITEMAP_MAX_URLS,
+    });
+
+    const entries = [
+      `  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>`,
+      ...profiles.map((p) => {
+        const lastmod = p.updatedAt ? new Date(p.updatedAt).toISOString() : '';
+        return `  <url><loc>${origin}/${escapeHtml(p.slug)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.8</priority></url>`;
+      }),
+    ].join('\n');
+
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
+
+    sitemapCache = { xml, expiresAt: now + SITEMAP_TTL_MS };
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+    res.send(xml);
+  } catch (err) {
+    console.error('[sitemap] error:', err);
+    res.status(500).send('Sitemap generation failed');
+  }
 });
 
 /* -------------------------------------------------------------------------- */
@@ -655,10 +707,25 @@ function injectProfileMeta(html, slug, data, req) {
   const url = `${origin}/${slug}`;
   const ogImage = `${origin}/api/og/${slug}`;
 
+  // JSON-LD Person schema — tells Google this page is a person's profile.
+  // Material help for "search by pseudonym → find persn.me/<pseudo>": the
+  // engine can attach the user's name + bio to the URL as a structured entity.
+  const personLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: username,
+    alternateName: `@${username}`,
+    description: bio,
+    url,
+    image: ogImage,
+    mainEntityOfPage: url,
+  };
+
   const tags = [
     `<title>@${escapeHtml(username)} — persn.me</title>`,
     `<meta name="description" content="${escapeHtml(bio)}" />`,
     `<link rel="canonical" href="${url}" />`,
+    `<meta name="robots" content="index,follow" />`,
     `<meta property="og:type" content="profile" />`,
     `<meta property="og:site_name" content="persn.me" />`,
     `<meta property="og:title" content="@${escapeHtml(username)}" />`,
@@ -667,12 +734,14 @@ function injectProfileMeta(html, slug, data, req) {
     `<meta property="og:image" content="${ogImage}" />`,
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
+    `<meta property="profile:username" content="${escapeHtml(username)}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="@${escapeHtml(username)} — persn.me" />`,
     `<meta name="twitter:description" content="${escapeHtml(bio)}" />`,
     `<meta name="twitter:image" content="${ogImage}" />`,
     // Discord uses og:image but also respects a theme colour hint.
     `<meta name="theme-color" content="${escapeHtml(data.theme?.accent || '#5865F2')}" />`,
+    `<script type="application/ld+json">${escapeJsonLd(JSON.stringify(personLd))}</script>`,
   ].join('\n    ');
 
   // Replace the first <title> tag (and a couple of static meta tags) with
@@ -691,6 +760,17 @@ function publicOrigin(req) {
   const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   return `${proto}://${host}`;
+}
+
+/**
+ * Escape a JSON string for safe embedding inside a <script> tag.
+ * Specifically neutralises </script> and HTML-comment sequences which
+ * would otherwise let an injected bio break out of the script element.
+ */
+function escapeJsonLd(json) {
+  return String(json)
+    .replace(/<\/script/gi, '<\\/script')
+    .replace(/<!--/g, '<\\!--');
 }
 
 function escapeHtml(str) {

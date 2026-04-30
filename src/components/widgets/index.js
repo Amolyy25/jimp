@@ -18,6 +18,7 @@ import DiscordPresenceWidget from './DiscordPresenceWidget.jsx';
 import TwitchStreamWidget from './TwitchStreamWidget.jsx';
 import GuestbookWidget from './GuestbookWidget.jsx';
 import QAWidget from './QAWidget.jsx';
+import ClickerGameWidget from './ClickerGameWidget.jsx';
 
 export const WIDGET_REGISTRY = {
   avatar: { component: AvatarWidget, label: 'Avatar & identité' },
@@ -34,4 +35,5 @@ export const WIDGET_REGISTRY = {
   twitchStream: { component: TwitchStreamWidget, label: 'Twitch Stream' },
   guestbook: { component: GuestbookWidget, label: 'Guestbook' },
   qa: { component: QAWidget, label: 'Anonymous Q&A' },
+  clickerGame: { component: ClickerGameWidget, label: 'Clicker Game' },
 };

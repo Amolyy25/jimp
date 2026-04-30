@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { SOCIALS } from '../../utils/socials.jsx';
 import { nanoid } from '../../utils/id.js';
 import TextInput from './controls/TextInput.jsx';
-import { compressImageFile, readVideoFileAsDataURL } from '../../utils/fileUpload.js';
 
 /**
  * Per-widget content editor.
@@ -38,6 +36,8 @@ export default function WidgetPanel({ widget, onUpdate }) {
       return <GuestbookForm data={widget.data} onUpdate={onUpdate} />;
     case 'qa':
       return <QAForm data={widget.data} onUpdate={onUpdate} />;
+    case 'clickerGame':
+      return <ClickerGameForm data={widget.data} onUpdate={onUpdate} />;
     default:
       return (
         <p className="text-xs text-white/40">No editor for this widget yet.</p>
@@ -130,11 +130,6 @@ function AvatarForm({ data, onUpdate }) {
         value={data.avatarUrl}
         onChange={(v) => onUpdate({ avatarUrl: v })}
         placeholder="https://..."
-      />
-      <ImageUpload
-        label="…or upload"
-        preset="avatar"
-        onUpload={(dataUrl) => onUpdate({ avatarUrl: dataUrl })}
       />
 
       <TextInput
@@ -377,11 +372,6 @@ function DiscordServersForm({ data, onUpdate }) {
             onChange={(v) => update(s.id, { icon: v })}
             placeholder="https://..."
           />
-          <ImageUpload
-            label="…or upload icon"
-            preset="icon"
-            onUpload={(dataUrl) => update(s.id, { icon: dataUrl })}
-          />
           <TextInput
             label="Short description"
             value={s.description}
@@ -441,11 +431,6 @@ function GamesForm({ data, onUpdate }) {
             onChange={(v) => update(g.id, { cover: v })}
             placeholder="https://..."
           />
-          <ImageUpload
-            label="…or upload cover"
-            preset="cover"
-            onUpload={(dataUrl) => update(g.id, { cover: dataUrl })}
-          />
 
           <TextInput
             label="Rank / Level (optional)"
@@ -465,16 +450,11 @@ function GamesForm({ data, onUpdate }) {
             label="Hover clip URL (optional)"
             value={g.clipUrl}
             onChange={(v) => update(g.id, { clipUrl: v })}
-            placeholder="https://.../clip.mp4"
-          />
-          <VideoUpload
-            label="…or upload clip"
-            onUpload={(dataUrl) => update(g.id, { clipUrl: dataUrl })}
+            placeholder="https://.../clip.mp4 or YouTube URL"
           />
           <p className="text-[11px] leading-relaxed text-white/40">
             The clip auto-plays (muted, looped) when visitors hover the card.
-            Upload is capped at 2MB — for anything bigger, host the file
-            somewhere and paste its URL above.
+            Host the file somewhere (e.g. a CDN or YouTube) and paste its URL.
           </p>
         </div>
       ))}
@@ -653,6 +633,51 @@ function DiscordPresenceForm({ data, onUpdate }) {
   );
 }
 
+function ClickerGameForm({ data, onUpdate }) {
+  return (
+    <div className="space-y-3">
+      <TextInput
+        label="Emoji"
+        value={data.emoji || ''}
+        onChange={(v) => onUpdate({ emoji: v.slice(0, 4) })}
+        placeholder="🍪"
+        maxLength={4}
+      />
+      <TextInput
+        label="Label"
+        value={data.label || ''}
+        onChange={(v) => onUpdate({ label: v.slice(0, 40) })}
+        placeholder="Click me!"
+        filter
+      />
+      <div className="grid grid-cols-2 gap-3">
+        <TextInput
+          label="+ per click"
+          value={String(data.increment ?? 1)}
+          onChange={(v) => {
+            const n = Math.max(1, Math.min(1_000_000, parseInt(v, 10) || 1));
+            onUpdate({ increment: n });
+          }}
+          placeholder="1"
+        />
+        <TextInput
+          label="Goal (0 = none)"
+          value={String(data.target ?? 0)}
+          onChange={(v) => {
+            const n = Math.max(0, Math.min(1_000_000_000, parseInt(v, 10) || 0));
+            onUpdate({ target: n });
+          }}
+          placeholder="100"
+        />
+      </div>
+      <p className="text-[11px] leading-relaxed text-white/40">
+        The score lives in each visitor's browser only — every visitor starts
+        from zero. Cosmetic / fun widget.
+      </p>
+    </div>
+  );
+}
+
 function VisitorCounterForm({ data, onUpdate }) {
   return (
     <div className="space-y-3">
@@ -736,84 +761,3 @@ function ToggleRow({ title, subtitle, checked, onChange }) {
   );
 }
 
-/**
- * Labeled file picker for images. Pipes uploads through the compression
- * helper (Canvas-based resize + JPEG/PNG re-encode) using the given preset
- * to keep profile size sane. Error states surface as a small red caption.
- */
-function ImageUpload({ label, preset, onUpload }) {
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  const onChange = async (e) => {
-    const file = e.target.files?.[0];
-    // Reset the native input so the same file can be re-selected after an error.
-    e.target.value = '';
-    if (!file) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const dataUrl = await compressImageFile(file, preset);
-      onUpload(dataUrl);
-    } catch (err) {
-      setError(err.message || 'Upload failed.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <label className="block space-y-1.5">
-      <span className="eyebrow">{label}</span>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={onChange}
-        disabled={busy}
-        className="block w-full text-xs text-white/60 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-white/20 disabled:opacity-50"
-      />
-      {busy && (
-        <p className="text-[10px] text-white/40">Compressing…</p>
-      )}
-      {error && (
-        <p className="text-[10px] font-medium text-red-400/90">{error}</p>
-      )}
-    </label>
-  );
-}
-
-/**
- * Video upload with a hard size cap. Throws a friendly message if the file
- * exceeds MAX_VIDEO_BYTES — otherwise stores as a data URL.
- */
-function VideoUpload({ label, onUpload }) {
-  const [error, setError] = useState(null);
-
-  const onChange = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setError(null);
-    try {
-      const dataUrl = await readVideoFileAsDataURL(file);
-      onUpload(dataUrl);
-    } catch (err) {
-      setError(err.message || 'Upload failed.');
-    }
-  };
-
-  return (
-    <label className="block space-y-1.5">
-      <span className="eyebrow">{label}</span>
-      <input
-        type="file"
-        accept="video/*"
-        onChange={onChange}
-        className="block w-full text-xs text-white/60 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-white/20"
-      />
-      {error && (
-        <p className="text-[10px] font-medium text-red-400/90">{error}</p>
-      )}
-    </label>
-  );
-}

@@ -202,6 +202,19 @@ export const WIDGET_CATALOG = {
       maxAnswered: 6,
     },
   },
+  clickerGame: {
+    type: 'clickerGame',
+    label: 'Clicker Game',
+    defaultPos: { x: 78, y: 18 },
+    defaultSize: { w: 18, h: 26 },
+    style: { ...baseStyle(), bgOpacity: 0.05 },
+    data: {
+      emoji: '🍪',
+      label: 'Click me!',
+      increment: 1,
+      target: 100,
+    },
+  },
 };
 
 export const WIDGET_TYPES = Object.keys(WIDGET_CATALOG);
@@ -218,6 +231,19 @@ export function makeWidgetInstance(type) {
     style: { ...def.style },
     data: JSON.parse(JSON.stringify(def.data)),
   };
+}
+
+/**
+ * Build a widget instance with explicit pos/size overrides — used by the
+ * default profile to lay things out as a coherent welcome canvas instead of
+ * relying on catalog defaults (which are tuned for "drop a single widget"
+ * scenarios and would overlap if used together).
+ */
+function placed(type, pos, size) {
+  const inst = makeWidgetInstance(type);
+  inst.pos = pos;
+  inst.size = size;
+  return inst;
 }
 
 /** Default profile used when no hash is present (first-time editor visit). */
@@ -253,15 +279,18 @@ export function makeDefaultProfile() {
       trackTitle: '',
       artist: '',
     },
+    // Welcome layout: identity column on the left (avatar → badges → socials),
+    // engagement column on the right (Discord servers + games), utility strip
+    // along the bottom (now playing + progress) and a tiny clock top-right.
     widgets: [
-      makeWidgetInstance('avatar'),
-      makeWidgetInstance('badges'),
-      makeWidgetInstance('socials'),
-      makeWidgetInstance('discordServers'),
-      makeWidgetInstance('games'),
-      makeWidgetInstance('clock'),
-      makeWidgetInstance('nowPlaying'),
-      makeWidgetInstance('musicProgress'),
+      placed('avatar',         { x: 6,  y: 10 }, { w: 32, h: 38 }),
+      placed('badges',         { x: 22, y: 56 }, { w: 32, h: 10 }),
+      placed('socials',        { x: 22, y: 70 }, { w: 38, h: 12 }),
+      placed('discordServers', { x: 72, y: 30 }, { w: 44, h: 40 }),
+      placed('games',          { x: 72, y: 70 }, { w: 50, h: 32 }),
+      placed('clock',          { x: 84, y: 5  }, { w: 12, h: 7  }),
+      placed('nowPlaying',     { x: 4,  y: 88 }, { w: 28, h: 9  }),
+      placed('musicProgress',  { x: 36, y: 88 }, { w: 30, h: 9  }),
     ],
   };
 }

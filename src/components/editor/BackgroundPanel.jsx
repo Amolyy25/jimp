@@ -9,13 +9,6 @@ import TextInput from './controls/TextInput.jsx';
 export default function BackgroundPanel({ background, onChange }) {
   const mode = background?.type || 'none';
 
-  const handleUpload = async (e, field) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await fileToDataURL(file);
-    onChange({ [field]: dataUrl });
-  };
-
   return (
     <div className="space-y-5">
       <TextInput
@@ -31,28 +24,30 @@ export default function BackgroundPanel({ background, onChange }) {
       />
 
       {mode === 'image' && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <TextInput
             label="Image URL"
             value={background.image}
             onChange={(v) => onChange({ image: v })}
             placeholder="https://..."
           />
-          <UploadRow label="…or upload" accept="image/*" onFile={(e) => handleUpload(e, 'image')} />
+          <p className="text-[11px] leading-relaxed text-white/40">
+            Host the image somewhere (e.g. an image CDN) and paste its URL.
+          </p>
         </div>
       )}
 
       {mode === 'video' && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <TextInput
             label="Video URL"
             value={background.video}
             onChange={(v) => onChange({ video: v })}
             placeholder="https://.../loop.mp4"
           />
-          <UploadRow label="…or upload" accept="video/*" onFile={(e) => handleUpload(e, 'video')} />
           <p className="text-[11px] leading-relaxed text-white/40">
-            For best results use a short, silent, looping mp4 (≤ 15s, ≤ 5MB).
+            Use a short, silent, looping mp4 hosted on a CDN. Direct uploads
+            are disabled — paste a public URL instead.
           </p>
         </div>
       )}
@@ -95,20 +90,6 @@ export default function BackgroundPanel({ background, onChange }) {
   );
 }
 
-function UploadRow({ label, accept, onFile }) {
-  return (
-    <label className="block space-y-1.5">
-      <span className="eyebrow">{label}</span>
-      <input
-        type="file"
-        accept={accept}
-        onChange={onFile}
-        className="block w-full text-xs text-white/60 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-white/20"
-      />
-    </label>
-  );
-}
-
 function extractYouTubeId(input) {
   if (!input) return '';
   // Already an id
@@ -118,13 +99,4 @@ function extractYouTubeId(input) {
     input.match(/youtu\.be\/([^?&]+)/) ||
     input.match(/embed\/([^?&]+)/);
   return match ? match[1] : input;
-}
-
-function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
