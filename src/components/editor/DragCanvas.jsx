@@ -122,10 +122,51 @@ export default function DragCanvas({
 
     function onUp() {
       if (!dragState.current) return;
+      const s = dragState.current;
       dragState.current = null;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       setGuides([]);
+
+      // Auto-parenting: if we moved widgets, check if their new center is inside a group
+      if (s.mode === 'move' && s.widget.type !== 'group') {
+         const draggedIds = s.groupOrigins && s.groupOrigins.length > 0 
+             ? s.groupOrigins.map(go => go.id) 
+             : [s.widget.id];
+             
+         const groups = profile.widgets.filter(w => w.type === 'group' && !draggedIds.includes(w.id));
+         const updates = [];
+         
+         draggedIds.forEach(id => {
+            const w = profile.widgets.find(widget => widget.id === id);
+            if (!w || w.type === 'group') return;
+            
+            const el = document.getElementById(`widget-${id}`);
+            if (!el) return;
+            
+            const finalX = parseFloat(el.style.left);
+            const finalY = parseFloat(el.style.top);
+            if (isNaN(finalX) || isNaN(finalY)) return;
+            
+            const auto = !!w.style?.autoSize;
+            const cx = auto ? finalX : finalX + w.size.w / 2;
+            const cy = auto ? finalY : finalY + w.size.h / 2;
+            
+            const targetGroup = [...groups].reverse().find(g => {
+                return cx >= g.pos.x && cx <= g.pos.x + g.size.w &&
+                       cy >= g.pos.y && cy <= g.pos.y + g.size.h;
+            });
+            
+            const newGroupId = targetGroup ? targetGroup.id : null;
+            if (w.groupId !== newGroupId) {
+                updates.push({ id: w.id, patch: { groupId: newGroupId } });
+            }
+         });
+         
+         if (updates.length > 0) {
+             onWidgetsMove(updates);
+         }
+      }
     }
 
     window.addEventListener('pointermove', onMove);
@@ -168,7 +209,7 @@ export default function DragCanvas({
         origin:
           mode === 'move'
             ? { x: widget.pos.x, y: widget.pos.y }
-            : { w: widget.size.w, h: widget.size.h },
+            : { w: widget.size.w, h: widget.size.h, x: widget.pos.x, y: widget.pos.y },
         groupOrigins: (mode === 'move' || (mode === 'resize' && widget.type === 'group'))
             ? allDraggedWidgets.map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y, w: w.size.w, h: w.size.h })) 
             : [],
