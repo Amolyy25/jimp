@@ -14,6 +14,17 @@ import { useMusic } from '../utils/MusicContext.jsx';
 import { getProfileBySlug, recordView, recordClick } from '../utils/api.js';
 import { resolveAccent } from '../utils/theme.js';
 import GuestbookFloating from '../components/GuestbookFloating.jsx';
+import axios from 'axios';
+import { 
+  Flag, 
+  ShieldAlert, 
+  Send, 
+  CheckCircle2, 
+  Loader2, 
+  AlertCircle, 
+  Mail, 
+  Check 
+} from 'lucide-react';
 
 /**
  * Public profile page.
@@ -341,9 +352,6 @@ function FooterActions({ accent = '#5865F2', slug }) {
     </div>
   );
 }
-
-import axios from 'axios';
-import { Flag, ShieldAlert, Send, CheckCircle2 } from 'lucide-react';
 
 function ReportModal({ slug, accent, onClose }) {
   const [reason, setReason] = useState('');

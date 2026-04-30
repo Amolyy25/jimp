@@ -83,6 +83,7 @@ export function registerAdminRoutes(app, prisma, authenticate) {
         signupsRaw,
         viewsRaw,
         topProfilesRaw,
+        pendingReports,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.profile.count(),
@@ -124,6 +125,12 @@ export function registerAdminRoutes(app, prisma, authenticate) {
           _count: { profileId: true },
           orderBy: { _count: { profileId: 'desc' } },
           take: TOP_PROFILES_LIMIT,
+        }),
+        prisma.report.findMany({
+          where: { status: 'PENDING' },
+          include: { profile: { select: { slug: true, userId: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
         }),
       ]);
 
@@ -180,6 +187,14 @@ export function registerAdminRoutes(app, prisma, authenticate) {
           isBanned: u.isBanned,
           createdAt: u.createdAt,
         })),
+        pendingReports: pendingReports.map((r) => ({
+          id: r.id,
+          profileSlug: r.profile.slug,
+          userId: r.profile.userId,
+          reason: r.reason,
+          details: r.details,
+          createdAt: r.createdAt,
+        })),
       });
     } catch (err) {
       console.error('[admin/stats]', err);
@@ -217,6 +232,20 @@ export function registerAdminRoutes(app, prisma, authenticate) {
       res.json({ success: true, message: `Profile ${profile.slug} deleted` });
     } catch (err) {
       res.status(500).json({ error: 'Failed to delete profile' });
+    }
+  });
+  // Update report status
+  app.post('/api/admin/reports/:id/status', authenticate, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    try {
+      await prisma.report.update({
+        where: { id },
+        data: { status },
+      });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update report' });
     }
   });
 }

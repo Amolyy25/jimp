@@ -99,7 +99,7 @@ function Dashboard({ user }) {
             <Loader2 className="h-6 w-6 animate-spin text-white/40" />
           </div>
         ) : stats ? (
-          <DashboardContent stats={stats} />
+          <DashboardContent stats={stats} onRefresh={load} />
         ) : null}
       </div>
     </div>
@@ -159,8 +159,26 @@ function Header({ user, refreshedAt, loading, onRefresh, onLogout }) {
   );
 }
 
-function DashboardContent({ stats }) {
-  const { totals, recent, timeseries, topProfiles, recentSignups } = stats;
+function DashboardContent({ stats, onRefresh }) {
+  const { totals, recent, timeseries, topProfiles, recentSignups, pendingReports } = stats;
+
+  const handleAction = async (type, target) => {
+    try {
+      if (type === 'ban' || type === 'ban-user') {
+        const reason = prompt('Raison du bannissement ?');
+        if (reason === null) return;
+        const id = target.userId || target.id;
+        await axios.post(`/api/admin/users/${id}/ban`, { banned: true, reason });
+      } else if (type === 'unban') {
+        await axios.post(`/api/admin/users/${target.id}/ban`, { banned: false });
+      } else if (type === 'dismiss') {
+        await axios.post(`/api/admin/reports/${target.id}/status`, { status: 'DISMISSED' });
+      }
+      onRefresh();
+    } catch (err) {
+      alert('Action failed: ' + (err.response?.data?.error || err.message));
+    }
+  };
 
   const cards = [
     {
@@ -241,44 +259,54 @@ function DashboardContent({ stats }) {
 
       <div className="grid gap-6 lg:grid-cols-5">
         <Panel className="lg:col-span-3">
-          <SectionTitle
-            eyebrow="Trafic"
-            title="Profils les plus vus (30 derniers jours)"
-          />
-          {topProfiles.length === 0 ? (
-            <Empty>Pas encore de vues sur cette fenêtre.</Empty>
+          <SectionTitle eyebrow="Modération" title="Signalements en attente" />
+          {pendingReports.length === 0 ? (
+            <Empty>Aucun signalement en attente. Félicitations !</Empty>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-white/5">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-white/[0.02] font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-                  <tr>
-                    <th className="px-4 py-2.5">#</th>
-                    <th className="px-4 py-2.5">Slug</th>
-                    <th className="px-4 py-2.5 text-right">Vues</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {topProfiles.map((p, i) => (
-                    <tr key={p.slug || i} className="transition hover:bg-white/[0.02]">
-                      <td className="px-4 py-2.5 font-mono text-[11px] text-white/30">
-                        {String(i + 1).padStart(2, '0')}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-[12px] text-white">
-                        {p.slug ? (
-                          <Link to={`/${p.slug}`} className="hover:text-discord">
-                            /{p.slug}
-                          </Link>
-                        ) : (
-                          <span className="text-white/30">— deleted —</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-[12px] tabular-nums">
-                        {p.views.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              {pendingReports.map((r) => (
+                <div
+                  key={r.id}
+                  className="rounded-lg border border-red-500/10 bg-red-500/[0.03] p-4"
+                >
+                  <div className="mb-2 flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/${r.profileSlug}`}
+                          target="_blank"
+                          className="font-mono text-[12px] font-bold text-white hover:text-discord"
+                        >
+                          /{r.profileSlug}
+                        </Link>
+                        <span className="rounded bg-red-500/20 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-red-400">
+                          {r.reason}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-white/30">
+                        {formatRelative(r.createdAt)}
+                      </div>
+                    </div>
+                  </div>
+                  {r.details && (
+                    <p className="mb-4 text-xs text-white/60">"{r.details}"</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleAction('ban', r)}
+                      className="rounded bg-red-500/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-200 transition hover:bg-red-500/40"
+                    >
+                      Bannir
+                    </button>
+                    <button
+                      onClick={() => handleAction('dismiss', r)}
+                      className="rounded bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white/40 transition hover:bg-white/10 hover:text-white"
+                    >
+                      Ignorer
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Panel>
@@ -292,7 +320,7 @@ function DashboardContent({ stats }) {
               {recentSignups.map((u) => (
                 <li
                   key={u.id}
-                  className="flex items-center justify-between rounded-md border border-white/5 bg-white/[0.02] px-3 py-2"
+                  className="group flex items-center justify-between rounded-md border border-white/5 bg-white/[0.02] px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -304,20 +332,76 @@ function DashboardContent({ stats }) {
                           admin
                         </span>
                       )}
+                      {u.isBanned && (
+                        <span className="rounded-sm bg-red-500/20 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.2em] text-red-400">
+                          Banni
+                        </span>
+                      )}
                     </div>
                     <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/30">
                       {u.slug ? `/${u.slug}` : 'no profile'}
                     </div>
                   </div>
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.18em] text-white/40">
-                    {formatRelative(u.createdAt)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/40 group-hover:hidden">
+                      {formatRelative(u.createdAt)}
+                    </span>
+                    <button
+                      onClick={() => handleAction(u.isBanned ? 'unban' : 'ban-user', u)}
+                      className="hidden font-mono text-[9px] uppercase tracking-wider text-red-400 hover:underline group-hover:block"
+                    >
+                      {u.isBanned ? 'Débannir' : 'Bannir'}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </Panel>
       </div>
+
+      <Panel>
+        <SectionTitle
+          eyebrow="Trafic"
+          title="Profils les plus vus (30 derniers jours)"
+        />
+        {topProfiles.length === 0 ? (
+          <Empty>Pas encore de vues sur cette fenêtre.</Empty>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-white/5">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-white/[0.02] font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
+                <tr>
+                  <th className="px-4 py-2.5">#</th>
+                  <th className="px-4 py-2.5">Slug</th>
+                  <th className="px-4 py-2.5 text-right">Vues</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {topProfiles.map((p, i) => (
+                  <tr key={p.slug || i} className="transition hover:bg-white/[0.02]">
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/30">
+                      {String(i + 1).padStart(2, '0')}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-[12px] text-white">
+                      {p.slug ? (
+                        <Link to={`/${p.slug}`} className="hover:text-discord">
+                          /{p.slug}
+                        </Link>
+                      ) : (
+                        <span className="text-white/30">— deleted —</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-[12px] tabular-nums">
+                      {p.views.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
 
       <footer className="pt-6 font-mono text-[10px] uppercase tracking-[0.22em] text-white/25">
         Données générées le {new Date(stats.generatedAt).toLocaleString()} · Toutes

@@ -181,12 +181,27 @@ app.use('/api/', apiLimiter);
 /**
  * JWT auth middleware — reads the `token` cookie set at login/register.
  * Responds with 401 on missing/invalid token; otherwise hydrates `req.user`.
+ * 
+ * Performance note: We fetch the user from DB on every auth call to ensure 
+ * that 'isBanned' or 'role' changes take effect immediately.
  */
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const token = req.cookies?.token;
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Safety: check if user still exists and isn't banned.
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, role: true, isBanned: true }
+    });
+
+    if (!user) return res.status(401).json({ error: 'Session no longer valid' });
+    if (user.isBanned) return res.status(403).json({ error: 'Votre compte a été suspendu.' });
+
+    req.user = { ...decoded, role: user.role };
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired session' });

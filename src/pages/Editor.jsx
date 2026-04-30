@@ -20,6 +20,8 @@ import { resolveAccent } from '../utils/theme.js';
 import HistoryDrawer from '../components/editor/HistoryDrawer.jsx';
 import TemplateConfirmModal from '../components/editor/TemplateConfirmModal.jsx';
 import logo from '../image/logo.jpeg';
+import axios from 'axios';
+import { AlertCircle, Mail, Loader2, Check } from 'lucide-react';
 
 const STORAGE_KEY = 'persn:profile';
 const AUTOSAVE_DEBOUNCE_MS = 5000;
@@ -641,9 +643,6 @@ function formatRelative(date) {
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 }
-
-import axios from 'axios';
-import { AlertCircle, Mail, Loader2, Check } from 'lucide-react';
 
 function VerificationBanner({ user }) {
   const [status, setStatus] = useState('idle'); // idle, loading, success, error
