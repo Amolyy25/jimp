@@ -30,6 +30,11 @@ const BLOCKED = [
   'hitler', 'nazi', 'isis', 'taliban',
 ];
 
+const BLOCKED_REGEX = new RegExp(
+  `\\b(${BLOCKED.map(escapeRegex).join('|')})\\b`,
+  'i'
+);
+
 function normalize(str) {
   return String(str)
     .toLowerCase()
@@ -48,16 +53,13 @@ function escapeRegex(str) {
 export function detectProfanity(text) {
   if (!text) return [];
   const normalized = normalize(text);
-  const hits = new Set();
-  for (const word of BLOCKED) {
-    const re = new RegExp(`(?:^|[^a-z])${escapeRegex(word)}(?:$|[^a-z])`, 'i');
-    if (re.test(normalized)) hits.add(word);
-  }
-  return Array.from(hits);
+  const match = normalized.match(BLOCKED_REGEX);
+  return match ? [match[0]] : [];
 }
 
 export function hasProfanity(text) {
-  return detectProfanity(text).length > 0;
+  if (!text) return false;
+  return BLOCKED_REGEX.test(normalize(text));
 }
 
 /**

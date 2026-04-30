@@ -195,13 +195,13 @@ async function authenticate(req, res, next) {
     // Safety: check if user still exists and isn't banned.
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, role: true, isBanned: true }
+      select: { id: true, role: true, isBanned: true, emailVerified: true }
     });
 
     if (!user) return res.status(401).json({ error: 'Session no longer valid' });
     if (user.isBanned) return res.status(403).json({ error: 'Votre compte a été suspendu.' });
-
-    req.user = { ...decoded, role: user.role };
+    
+    req.user = { ...decoded, role: user.role, emailVerified: user.emailVerified };
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired session' });
@@ -474,8 +474,7 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user.emailVerified) {
+    if (!req.user.emailVerified) {
       return res.status(403).json({ 
         error: 'Email non vérifié', 
         message: 'Veuillez vérifier votre adresse email pour pouvoir publier votre profil.' 
@@ -579,6 +578,8 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
       profileCache.delete(existing.slug);
     }
     profileCache.delete(normalizedSlug);
+
+    return res.json({ ...profile, ...cooldownFor(profile) });
   } catch (err) {
     if (err.code === 'P2002') {
       return res.status(409).json({ error: 'This URL is already taken' });
