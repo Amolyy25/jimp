@@ -54,6 +54,7 @@ import {
 } from './validate.js';
 import { generateVerificationToken, sendVerificationEmail } from './mailer.js';
 import { clientIp } from './rateLimit.js';
+import { notifyNewUser, notifyReport } from './webhooks.js';
 
 const { PrismaClient } = pkg;
 
@@ -269,6 +270,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     sendVerificationEmail(normalizedEmail, verifyToken).catch((err) => {
       console.error('[register] failed to send email:', err.message);
     });
+
+    notifyNewUser(username, normalizedEmail).catch(() => {});
 
     issueSession(res, user);
     res.json({ user: publicUser(user) });
@@ -617,6 +620,8 @@ app.post('/api/reports', async (req, res) => {
         reporterIp: clientIp(req),
       },
     });
+
+    notifyReport(slug, reason, details, clientIp(req)).catch(() => {});
 
     res.json({ success: true, message: 'Report submitted successfully' });
   } catch (err) {

@@ -27,6 +27,8 @@
 
 import crypto from 'node:crypto';
 
+import { notifyNewUser } from './webhooks.js';
+
 const AUTH_BASE = 'https://discord.com/api/oauth2';
 const API_BASE = 'https://discord.com/api';
 const SCOPES = 'identify email';
@@ -137,6 +139,11 @@ export function registerDiscordAuthRoutes(app, prisma, authenticate, helpers) {
 
       issueSession(res, user);
       const flag = isNew ? 'registered' : 'connected';
+      
+      if (isNew) {
+        notifyNewUser(user.username, normalizedEmail, 'Discord').catch(() => {});
+      }
+
       return res.redirect(`${appUrl}/editor?discord=${flag}`);
     } catch (err) {
       console.error('[discord] callback failed:', err);

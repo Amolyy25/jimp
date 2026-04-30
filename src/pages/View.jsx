@@ -291,7 +291,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
         </div>
       )}
 
-      <MadeWithPersn accent={accent} />
+      <FooterActions accent={accent} slug={slug} />
       <CreateYoursToast accent={accent} accentCss={accentCss} />
     </div>
   );
@@ -304,9 +304,10 @@ function renderWidget(widget, ctx) {
   return <Component widget={widget} {...ctx} />;
 }
 
-/** Subtle "Made with" pill, bottom-left. Stays minimal so it doesn't fight
- *  the profile content. */
-function MadeWithPersn({ accent = '#5865F2' }) {
+/** Subtle "Made with" pill and Report button, bottom. */
+function FooterActions({ accent = '#5865F2', slug }) {
+  const [reportOpen, setReportOpen] = useState(false);
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 px-5 py-3">
       <div className="pointer-events-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/35">
@@ -316,6 +317,134 @@ function MadeWithPersn({ accent = '#5865F2' }) {
         />
         Made with persn.me
       </div>
+
+      {slug && (
+        <div className="pointer-events-auto">
+          <button
+            onClick={() => setReportOpen(true)}
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-white/30 transition hover:bg-white/10 hover:text-white/60"
+            title="Report this profile"
+          >
+            <Flag className="h-3.5 w-3.5" />
+          </button>
+          <AnimatePresence>
+            {reportOpen && (
+              <ReportModal
+                slug={slug}
+                accent={accent}
+                onClose={() => setReportOpen(false)}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
+  );
+}
+
+import axios from 'axios';
+import { Flag, ShieldAlert, Send, CheckCircle2 } from 'lucide-react';
+
+function ReportModal({ slug, accent, onClose }) {
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [status, setStatus] = useState('idle'); // idle | loading | success | error
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!reason) return;
+    setStatus('loading');
+    try {
+      await axios.post('/api/reports', { slug, reason, details });
+      setStatus('success');
+      setTimeout(onClose, 2000);
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="w-full max-w-sm rounded-3xl border border-white/10 bg-ink-900 p-6 shadow-2xl"
+      >
+        {status === 'success' ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
+              <CheckCircle2 className="h-6 w-6 text-green-500" />
+            </div>
+            <h3 className="mb-1 text-lg font-semibold">Signalement envoyé</h3>
+            <p className="text-sm text-white/40">Merci de nous aider à garder persn.me sûr.</p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
+                <ShieldAlert className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold leading-tight">Signaler un profil</h3>
+                <p className="text-xs text-white/40">persn.me/{slug}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/40">Raison</label>
+                <select
+                  required
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none"
+                >
+                  <option value="" disabled>Choisir une raison...</option>
+                  <option value="spam">Spam ou Publicité</option>
+                  <option value="harassment">Harcèlement ou Haine</option>
+                  <option value="impersonation">Usurpation d'identité</option>
+                  <option value="nsfw">Contenu inapproprié / NSFW</option>
+                  <option value="legal">Illégal / Droits d'auteur</option>
+                  <option value="other">Autre</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/40">Détails (Optionnel)</label>
+                <textarea
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                  placeholder="Plus d'informations..."
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:border-white/20 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 rounded-xl bg-white/5 py-3 text-xs font-bold text-white/60 transition hover:bg-white/10 hover:text-white"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={!reason || status === 'loading'}
+                  className="flex flex-[1.5] items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-white shadow-lg transition hover:brightness-110 disabled:opacity-50"
+                  style={{ background: accent }}
+                >
+                  {status === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-3.5 w-3.5" /> Envoyer</>}
+                </button>
+              </div>
+              {status === 'error' && (
+                <p className="mt-2 text-center text-[10px] text-red-400">Une erreur est survenue. Réessayez.</p>
+              )}
+            </form>
+          </>
+        )}
+      </motion.div>
     </div>
   );
 }

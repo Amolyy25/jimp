@@ -377,6 +377,7 @@ export default function Editor() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-ink-950 text-white">
       <main className="relative hidden flex-1 lg:block">
+        <VerificationBanner user={me} />
         <TopBar
           me={me}
           saveStatus={saveStatus}
@@ -639,6 +640,58 @@ function formatRelative(date) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+import axios from 'axios';
+import { AlertCircle, Mail, Loader2, Check } from 'lucide-react';
+
+function VerificationBanner({ user }) {
+  const [status, setStatus] = useState('idle'); // idle, loading, success, error
+  
+  if (!user || user.emailVerified) return null;
+
+  const handleResend = async () => {
+    setStatus('loading');
+    try {
+      await axios.post('/api/auth/resend-verification');
+      setStatus('success');
+      setTimeout(() => setStatus('idle'), 5000);
+    } catch (err) {
+      console.error('[resend] failed:', err);
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="relative z-50 flex items-center justify-center gap-3 bg-discord/10 px-4 py-2 border-b border-discord/20 backdrop-blur-md">
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-discord/20">
+        <Mail className="h-3.5 w-3.5 text-discord" />
+      </div>
+      <p className="text-[11px] font-medium text-white/80">
+        Votre profil n'est pas encore public. <span className="text-white">Vérifiez votre adresse email</span> pour l'activer.
+      </p>
+      
+      <button
+        onClick={handleResend}
+        disabled={status === 'loading' || status === 'success'}
+        className="ml-2 rounded-full bg-discord/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white transition hover:bg-discord/30 disabled:opacity-50"
+      >
+        {status === 'loading' ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : status === 'success' ? (
+          <span className="flex items-center gap-1"><Check className="h-3 w-3" /> Envoyé !</span>
+        ) : (
+          "Renvoyer le mail"
+        )}
+      </button>
+
+      {status === 'error' && (
+        <span className="flex items-center gap-1 text-[10px] text-red-400">
+          <AlertCircle className="h-3 w-3" /> Erreur
+        </span>
+      )}
+    </div>
+  );
 }
 
 function AccountChip({ user, onLogout }) {
