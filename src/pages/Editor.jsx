@@ -21,7 +21,19 @@ import HistoryDrawer from '../components/editor/HistoryDrawer.jsx';
 import TemplateConfirmModal from '../components/editor/TemplateConfirmModal.jsx';
 import logo from '../image/logo.jpeg';
 import axios from 'axios';
-import { AlertCircle, Mail, Loader2, Check } from 'lucide-react';
+import { 
+  AlertCircle, 
+  Mail, 
+  Loader2, 
+  Check, 
+  ArrowRight, 
+  Sparkles, 
+  MousePointer2, 
+  Laptop,
+  X
+} from 'lucide-react';
+import { TEMPLATES } from '../utils/templates.js';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const STORAGE_KEY = 'persn:profile';
 const AUTOSAVE_DEBOUNCE_MS = 5000;
@@ -376,6 +388,28 @@ export default function Editor() {
   /* Render                                                                */
   /* -------------------------------------------------------------------- */
 
+  // Onboarding flow
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    if (hydrated && me && !serverSlug) {
+      const hasSeen = localStorage.getItem(`persn:onboarding:${me.id}`);
+      if (!hasSeen) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [hydrated, me, serverSlug]);
+
+  const handleCompleteOnboarding = () => {
+    setShowOnboarding(false);
+    if (me) localStorage.setItem(`persn:onboarding:${me.id}`, '1');
+  };
+
+  const handleApplyOnboardingTemplate = (templateProfile) => {
+    setProfile(templateProfile);
+    setSaveStatus('dirty');
+    handleCompleteOnboarding();
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-ink-950 text-white">
       <main className="relative hidden flex-1 lg:block">
@@ -404,6 +438,13 @@ export default function Editor() {
             onWidgetResize={(id, size) => updateWidget(id, { size })}
           />
         </MusicPlayer>
+
+        {showOnboarding && (
+          <OnboardingModal 
+            onComplete={handleCompleteOnboarding} 
+            onApplyTemplate={handleApplyOnboardingTemplate}
+          />
+        )}
         {toast && (
           <div className="pointer-events-none absolute left-1/2 top-6 z-50 -translate-x-1/2 rounded-full border border-white/10 bg-ink-800/90 px-4 py-2 text-xs font-medium shadow-xl backdrop-blur">
             {toast.message}
@@ -731,6 +772,132 @@ function AccountChip({ user, onLogout }) {
           Sign out
         </button>
       </div>
+    </div>
+  );
+}
+
+function OnboardingModal({ onComplete, onApplyTemplate }) {
+  const [step, setStep] = useState(0); // 0: Welcome, 1: Templates, 2: Tutorial
+
+  const steps = [
+    {
+      title: "Bienvenue sur persn.me",
+      subtitle: "Crée ton profil unique en quelques secondes. Exprime ta créativité sans aucune limite.",
+      icon: <Sparkles className="h-6 w-6 text-discord" />,
+      button: "C'est parti !",
+      content: (
+        <div className="relative mt-8 aspect-video overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+            <div className="mb-4 h-20 w-20 rounded-full bg-discord/20 flex items-center justify-center">
+               <div className="h-12 w-12 rounded-full bg-discord flex items-center justify-center text-white font-black text-2xl">P</div>
+            </div>
+            <div className="max-w-xs space-y-2">
+               <div className="h-2 w-24 mx-auto rounded-full bg-white/10" />
+               <div className="h-2 w-32 mx-auto rounded-full bg-white/5" />
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      title: "Choisis un point de départ",
+      subtitle: "Sélectionne un modèle pour commencer, ou pars d'une page blanche.",
+      icon: <Laptop className="h-6 w-6 text-discord" />,
+      button: "Passer cette étape",
+      content: (
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          {TEMPLATES.slice(0, 4).map((tpl) => (
+            <button
+              key={tpl.id}
+              onClick={() => onApplyTemplate(tpl.profile)}
+              className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] text-left transition hover:border-discord/50 hover:bg-white/[0.06]"
+            >
+              <div 
+                className="aspect-video w-full transition group-hover:scale-105" 
+                style={{ background: tpl.thumbnailGradient || '#222' }}
+              />
+              <div className="p-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-white/90">{tpl.name}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: "Comment ça marche ?",
+      subtitle: "L'éditeur est un canevas libre. Tout est modifiable.",
+      icon: <MousePointer2 className="h-6 w-6 text-discord" />,
+      button: "Terminer",
+      content: (
+        <div className="mt-8 space-y-4">
+          {[
+            { icon: "🎯", text: "Glisse et dépose les éléments où tu veux." },
+            { icon: "🎨", text: "Thèmes, couleurs et effets dynamiques." },
+            { icon: "🎵", text: "Musique de fond et vidéos YouTube en arrière-plan." }
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
+              <span className="text-2xl">{item.icon}</span>
+              <span className="text-sm text-white/70">{item.text}</span>
+            </div>
+          ))}
+        </div>
+      )
+    }
+  ];
+
+  const current = steps[step];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative w-full max-w-xl overflow-hidden rounded-[32px] border border-white/10 bg-ink-950 p-8 shadow-2xl lg:p-12"
+      >
+        <button 
+          onClick={onComplete}
+          className="absolute right-6 top-6 text-white/20 transition hover:text-white"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-discord/10">
+            {current.icon}
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight text-white lg:text-4xl">
+            {current.title}
+          </h2>
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/40">
+            {current.subtitle}
+          </p>
+        </div>
+
+        {current.content}
+
+        <div className="mt-12 flex flex-col items-center gap-4">
+          <button
+            onClick={() => {
+              if (step < steps.length - 1) setStep(step + 1);
+              else onComplete();
+            }}
+            className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-bold text-black transition hover:scale-105 active:scale-95"
+          >
+            {current.button}
+            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+          </button>
+          
+          <div className="flex gap-2">
+            {steps.map((_, i) => (
+              <div 
+                key={i} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-discord' : 'w-1.5 bg-white/10'}`} 
+              />
+            ))}
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }
