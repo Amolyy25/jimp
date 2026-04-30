@@ -52,6 +52,7 @@ import {
   isStrongEnoughPassword,
   approxJsonBytes,
 } from './validate.js';
+import { generateVerificationToken, sendVerificationEmail } from './mailer.js';
 
 const { PrismaClient } = pkg;
 
@@ -211,6 +212,7 @@ function publicUser(user) {
     username: user.username,
     email: user.email,
     role: user.role || 'USER',
+    emailVerified: !!user.emailVerified,
   };
 }
 
@@ -251,9 +253,22 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
     const normalizedEmail = String(email).trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verifyToken = generateVerificationToken();
+
     const user = await prisma.user.create({
-      data: { username: String(username).trim(), email: normalizedEmail, password: hashedPassword },
+      data: { 
+        username: String(username).trim(), 
+        email: normalizedEmail, 
+        password: hashedPassword,
+        emailVerifyToken: verifyToken,
+      },
     });
+
+    // Don't wait for email to send before responding to user.
+    sendVerificationEmail(normalizedEmail, verifyToken).catch((err) => {
+      console.error('[register] failed to send email:', err.message);
+    });
+
     issueSession(res, user);
     res.json({ user: publicUser(user) });
   } catch (err) {
@@ -262,6 +277,51 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     }
     console.error('[register]', err);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.post('/api/auth/verify-email', async (req, res) => {
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { emailVerifyToken: token },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired token' });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true, emailVerifyToken: null },
+    });
+
+    res.json({ success: true, message: 'Email verified successfully' });
+  } catch (err) {
+    console.error('[verify-email]', err);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+app.post('/api/auth/resend-verification', authLimiter, authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.emailVerified) return res.status(400).json({ error: 'Email already verified' });
+
+    const verifyToken = generateVerificationToken();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifyToken: verifyToken },
+    });
+
+    await sendVerificationEmail(user.email, verifyToken);
+    res.json({ success: true, message: 'Verification email resent' });
+  } catch (err) {
+    console.error('[resend-verification]', err);
+    res.status(500).json({ error: 'Failed to resend verification email' });
   }
 });
 
@@ -346,14 +406,36 @@ app.get('/api/profiles/me', authenticate, async (req, res) => {
   }
 });
 
-// Public profile fetch — returns the `data` blob plus the owner ID so the
-// public page can, for instance, ask for live Spotify now-playing. The
-// owner ID is not sensitive (it's the cuid), only the tokens are.
+// Optimization: In-memory cache for public profiles to survive viral traffic spikes.
+const profileCache = new Map(); // slug -> { data, timestamp }
+const PROFILE_CACHE_TTL = 60_000;
+
+// Public profile fetch — returns the `data` blob plus the owner ID.
 app.get('/api/profiles/:slug', async (req, res) => {
   const { slug } = req.params;
-  const profile = await prisma.profile.findUnique({ where: { slug } });
+  const normalizedSlug = slug.toLowerCase();
+
+  const now = Date.now();
+  const cached = profileCache.get(normalizedSlug);
+  if (cached && now - cached.timestamp < PROFILE_CACHE_TTL) {
+    return res.json(cached.data);
+  }
+
+  const profile = await prisma.profile.findUnique({ where: { slug: normalizedSlug } });
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
-  res.json({ ...profile.data, __ownerId: profile.userId });
+
+  const responseData = { ...profile.data, __ownerId: profile.userId };
+  profileCache.set(normalizedSlug, { data: responseData, timestamp: now });
+
+  // Simple cache cleanup
+  if (profileCache.size > 5000) {
+    const threshold = now - PROFILE_CACHE_TTL;
+    for (const [s, entry] of profileCache.entries()) {
+      if (entry.timestamp < threshold) profileCache.delete(s);
+    }
+  }
+
+  res.json(responseData);
 });
 
 // Create or update the current user's profile.
@@ -362,10 +444,19 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
   const { slug, data } = req.body || {};
   const userId = req.user.userId;
 
-  if (!slug || typeof slug !== 'string') {
-    return res.status(400).json({ error: 'Slug is required' });
-  }
-  const normalizedSlug = slug.toLowerCase().trim();
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user.emailVerified) {
+      return res.status(403).json({ 
+        error: 'Email non vérifié', 
+        message: 'Veuillez vérifier votre adresse email pour pouvoir publier votre profil.' 
+      });
+    }
+
+    if (!slug || typeof slug !== 'string') {
+      return res.status(400).json({ error: 'Slug is required' });
+    }
+    const normalizedSlug = slug.toLowerCase().trim();
   // 4-30 enforcement on new claims and renames. Existing 2-3 char slugs
   // (grandfathered) keep working on routing/lookups but cannot be re-claimed
   // once released.
@@ -418,6 +509,7 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
         data: { slug: normalizedSlug, data, userId, slugChangedAt: new Date() },
       });
       invalidateOgCache(normalizedSlug);
+      profileCache.delete(normalizedSlug);
       // Snapshot the first save so the user has at least one entry in their
       // history timeline (Feature 13).
       await snapshotVersion(prisma, profile.id, data).catch((err) => {
@@ -457,13 +549,11 @@ app.post('/api/profiles', writeLimiter, authenticate, async (req, res) => {
     // Any saved change means the OG preview is stale — drop the cache so
     // crawlers re-render next time they hit /:slug.
     invalidateOgCache(normalizedSlug);
-    if (slugChanged) invalidateOgCache(existing.slug);
-    // Append a version snapshot (Feature 13). Capped at 20 entries per
-    // profile inside snapshotVersion. Best-effort — never block the save.
-    snapshotVersion(prisma, profile.id, data).catch((err) => {
-      console.warn('[versions] snapshot failed:', err.message);
-    });
-    res.json({ ...profile, ...cooldownFor(profile) });
+    if (slugChanged) {
+      invalidateOgCache(existing.slug);
+      profileCache.delete(existing.slug);
+    }
+    profileCache.delete(normalizedSlug);
   } catch (err) {
     if (err.code === 'P2002') {
       return res.status(409).json({ error: 'This URL is already taken' });

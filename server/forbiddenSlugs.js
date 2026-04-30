@@ -25,15 +25,29 @@ export const FORBIDDEN_SLUGS = new Set([
   'alqaeda', 'taliban', 'suicide', 'kill', 'murder', 'death', 'blood', 'gore',
   'scat', 'bdsm', 'hentai', 'milf', 'dilf', 'shemale', 'tranny', 'incest',
   
-  // Platform / Impersonation
+  // Platform / Impersonation & Large Brands
   'system', 'official', 'verified', 'staff', 'mod', 'moderator', 'owner', 'ceo',
-  'founder', 'google', 'apple', 'facebook', 'instagram', 'twitter', 'x', 'tiktok',
-  'discord', 'spotify', 'youtube', 'twitch', 'amazon', 'microsoft', 'github',
-  'cloudflare', 'stripe', 'paypal', 'visa', 'mastercard', 'americanexpress',
+  'founder', 'admin-support', 'security', 'safety', 'abuse',
+  'google', 'apple', 'facebook', 'instagram', 'twitter', 'x', 'tiktok', 'snapchat', 'snap',
+  'discord', 'spotify', 'youtube', 'twitch', 'amazon', 'microsoft', 'github', 'linkedin',
+  'reddit', 'netflix', 'disney', 'whatsapp', 'telegram', 'signal', 'messenger',
+  'cloudflare', 'stripe', 'paypal', 'visa', 'mastercard', 'americanexpress', 'amex',
   'bank', 'money', 'crypto', 'bitcoin', 'eth', 'solana', 'nft', 'scam', 'phishing',
-  'proxy', 'vpn', 'bot', 'botnet', 'hacker', 'cracked', 'warez', 'torrent',
+  'binance', 'coinbase', 'revolut', 'lydia', 'boursorama', 'fortuneo', 'n26',
+  'rolex', 'louisvuitton', 'gucci', 'prada', 'nike', 'adidas', 'puma', 'zara',
+  'tesla', 'spacex', 'starlink', 'valve', 'steam', 'epicgames', 'roblox', 'minecraft',
+  'nintendo', 'sony', 'playstation', 'xbox', 'nvidid', 'amd', 'intel', 'samsung',
+  'proxy', 'vpn', 'bot', 'botnet', 'hacker', 'cracked', 'warez', 'torrent', 'proxy',
 
-  // Common French offensive terms (User is French)
+  // Celebrities / Public Figures
+  'elonmusk', 'elon', 'billgates', 'jeffbezos', 'markzuckerberg', 'zuck', 'trump',
+  'donaldtrump', 'biden', 'joebiden', 'obama', 'putin', 'macron', 'emmanuelmacron',
+  'messi', 'ronaldo', 'cr7', 'neymar', 'mbappe', 'lebron', 'kanye', 'ye', 'taylorswift',
+  'mrbeast', 'pewdiepie',
+
+  // French Institutions / Sensitive
+  'ameli', 'impots', 'caf', 'police', 'gendarmerie', 'elysee', 'gouvernement', 'gouv',
+  'service-public', 'identitenumerique', 'franceidentite', 'monfranceconnect',
   'pute', 'salope', 'connard', 'encule', 'pd', 'negre', 'bougnoule', 'bicot',
   'pute', 'bordel', 'merde', 'chiant', 'bite', 'couille', 'nichon', 'clito',
   'nique', 'baise', 'viol', 'tueur', 'mort', 'nazi', 'hitler', 'petasse',

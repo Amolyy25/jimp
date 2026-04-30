@@ -54,8 +54,35 @@ function getOrSetSessionNonce(req, res) {
   return nonce;
 }
 
+const viewBuffer = [];
+const clickBuffer = [];
+const FLUSH_INTERVAL_MS = 5_000;
+const dedupCache = new Map();
+const DEDUP_CACHE_TTL = 24 * 60 * 60 * 1000;
+
 export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
   const ingestLimiter = opts.ingestLimiter || ((_req, _res, next) => next());
+
+  setInterval(async () => {
+    if (viewBuffer.length > 0) {
+      const batch = viewBuffer.splice(0, viewBuffer.length);
+      await prisma.viewEvent.createMany({ data: batch, skipDuplicates: true }).catch(err => {
+        console.error('[analytics] view flush failed:', err.message);
+      });
+    }
+    if (clickBuffer.length > 0) {
+      const batch = clickBuffer.splice(0, clickBuffer.length);
+      await prisma.clickEvent.createMany({ data: batch }).catch(err => {
+        console.error('[analytics] click flush failed:', err.message);
+      });
+    }
+    if (dedupCache.size > 50000) {
+      const now = Date.now();
+      for (const [k, ts] of dedupCache.entries()) {
+        if (now - ts > DEDUP_CACHE_TTL) dedupCache.delete(k);
+      }
+    }
+  }, FLUSH_INTERVAL_MS);
 
   // -- Ingest: views ------------------------------------------------------
   app.post('/api/views', ingestLimiter, async (req, res) => {
@@ -70,26 +97,20 @@ export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
 
       const nonce = getOrSetSessionNonce(req, res);
       const sessionId = hashSession(nonce);
-
-      // Throttle: skip if this session already viewed this profile within
-      // the current salt window. Cheap by index lookup.
-      const recent = await prisma.viewEvent.findFirst({
-        where: { profileId: profile.id, sessionId },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true },
-      });
-      if (recent && Date.now() - new Date(recent.createdAt).getTime() < SALT_ROTATION_MS) {
+      const dedupKey = `${profile.id}:${sessionId}`;
+      const now = Date.now();
+      const lastSeen = dedupCache.get(dedupKey);
+      if (lastSeen && now - lastSeen < DEDUP_CACHE_TTL) {
         return res.json({ ok: true, deduped: true });
       }
 
-      await prisma.viewEvent.create({
-        data: {
-          profileId: profile.id,
-          sessionId,
-          referer: clip(req.headers.referer, 200),
-          country: clip(req.headers['cf-ipcountry'], 4),
-          userAgent: clip(req.headers['user-agent'], 200),
-        },
+      dedupCache.set(dedupKey, now);
+      viewBuffer.push({
+        profileId: profile.id,
+        sessionId,
+        referer: clip(req.headers.referer, 200),
+        country: clip(req.headers['cf-ipcountry'], 4),
+        userAgent: clip(req.headers['user-agent'], 200),
       });
       res.json({ ok: true });
     } catch (err) {
@@ -104,9 +125,6 @@ export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
     const kind = clip(req.body?.kind || 'link', 32);
     const target = clip(req.body?.target || '', 512);
     if (!slug || !target) return res.json({ ok: false });
-    // Reject obviously dangerous click targets — even though this is just
-    // analytics, we don't want to store javascript:/data: URIs that could
-    // get reflected back to the owner's dashboard.
     if (!/^(https?:\/\/|\/|#)/i.test(target)) return res.json({ ok: false });
     try {
       const profile = await prisma.profile.findUnique({
@@ -115,9 +133,7 @@ export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
       });
       if (!profile) return res.json({ ok: false });
 
-      await prisma.clickEvent.create({
-        data: { profileId: profile.id, kind, target },
-      });
+      clickBuffer.push({ profileId: profile.id, kind, target });
       res.json({ ok: true });
     } catch (err) {
       console.warn('[analytics clicks]', err.message);

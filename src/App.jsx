@@ -7,6 +7,7 @@ import View from './pages/View.jsx';
 import Analytique from './pages/Analytique.jsx';
 import Explore from './pages/Explore.jsx';
 import Clicker from './pages/Clicker.jsx';
+import VerifyEmail from './pages/VerifyEmail.jsx';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
       <Route path="/analytique" element={<Analytique />} />
       <Route path="/explore" element={<Explore />} />
       <Route path="/clicker" element={<Clicker />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/view" element={<View />} />
       <Route path="/:slug" element={<View />} />
       <Route path="*" element={<Navigate to="/" replace />} />

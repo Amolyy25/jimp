@@ -68,7 +68,7 @@ export function registerClickerRoutes(app, prisma, opts = {}) {
         data: { clickerScore: { increment: count } },
         select: { clickerScore: true },
       });
-      const rankInfo = await computeRank(prisma, updated.clickerScore);
+      const rankInfo = await getOptimizedRank(prisma, slug, updated.clickerScore);
       res.json({
         score: updated.clickerScore,
         added: count,
@@ -92,23 +92,53 @@ export function registerClickerRoutes(app, prisma, opts = {}) {
       select: { clickerScore: true },
     });
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
-    const rankInfo = await computeRank(prisma, profile.clickerScore);
+    const rankInfo = await getOptimizedRank(prisma, slug, profile.clickerScore);
     res.json({ score: profile.clickerScore, ...rankInfo });
   });
 }
 
 /**
- * Given a score, return { rank, total } where:
- *  - total  = number of profiles that have been clicked at least once
- *  - rank   = 1-based position (1 + how many profiles have a strictly higher
- *             score). A profile with score 0 returns rank=null — it isn't on
- *             the board yet.
+ * Returns the total count of active clickers, using a 30s cache.
  */
-async function computeRank(prisma, score) {
-  const total = await prisma.profile.count({ where: { clickerScore: { gt: 0 } } });
+async function getCachedTotal(prisma) {
+  const now = Date.now();
+  if (now - lastTotalUpdate > TOTAL_CACHE_TTL) {
+    cachedTotalCount = await prisma.profile.count({ where: { clickerScore: { gt: 0 } } });
+    lastTotalUpdate = now;
+  }
+  return cachedTotalCount;
+}
+
+/**
+ * Optimized rank calculation that uses the cached total and debounces per-profile
+ * rank queries to 2 seconds.
+ */
+async function getOptimizedRank(prisma, slug, score) {
+  const now = Date.now();
+  const total = await getCachedTotal(prisma);
+
   if (score <= 0) return { rank: null, total };
+
+  const cached = rankCache.get(slug);
+  if (cached && now - cached.timestamp < RANK_CACHE_TTL) {
+    return { rank: cached.rank, total };
+  }
+
+  // Calculate fresh rank: how many profiles have a strictly higher score.
   const ahead = await prisma.profile.count({
     where: { clickerScore: { gt: score } },
   });
-  return { rank: ahead + 1, total };
+
+  const rank = ahead + 1;
+  rankCache.set(slug, { rank, total, timestamp: now });
+
+  // Cleanup old entries from rankCache periodically (naive)
+  if (rankCache.size > 1000) {
+    const threshold = now - RANK_CACHE_TTL;
+    for (const [s, entry] of rankCache.entries()) {
+      if (entry.timestamp < threshold) rankCache.delete(s);
+    }
+  }
+
+  return { rank, total };
 }

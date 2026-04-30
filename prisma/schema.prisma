@@ -28,6 +28,10 @@ model User {
   role                Role      @default(USER)
   createdAt           DateTime  @default(now())
 
+  // Email validation flow
+  emailVerified       Boolean   @default(false)
+  emailVerifyToken    String?   @unique
+
   // Spotify — optional. When present, the /api/spotify/now-playing/:userId
   // endpoint can stream live playback into the viewer's profile.
   spotifyAccessToken  String?
