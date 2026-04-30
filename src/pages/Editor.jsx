@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { nanoid } from 'nanoid';
 import { Link, useNavigate } from 'react-router-dom';
 import DragCanvas from '../components/editor/DragCanvas.jsx';
 import MusicPlayer from '../components/MusicPlayer.jsx';
@@ -56,7 +57,8 @@ const AUTOSAVE_DEBOUNCE_MS = 5000;
 export default function Editor() {
   const navigate = useNavigate();
   const [profile, setProfile] = useLocalStorage(STORAGE_KEY, makeDefaultProfile());
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const selectedId = selectedIds.length === 1 ? selectedIds[0] : null;
   const [toast, setToast] = useState(null);
   const [sidebarSection, setSidebarSection] = useState('widgets');
 
@@ -72,6 +74,77 @@ export default function Editor() {
     () => profile.widgets.find((w) => w.id === selectedId) || null,
     [profile.widgets, selectedId],
   );
+
+  const handleSelect = useCallback((id) => {
+    if (!id) setSelectedIds([]);
+    else setSelectedIds([id]);
+  }, []);
+
+  const handleSelectMultiple = useCallback((id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleGroupWidgets = useCallback((ids) => {
+    const widgets = profile.widgets.filter((w) => ids.includes(w.id));
+    if (widgets.length < 2) return;
+
+    let minX = 100, minY = 100, maxX = 0, maxY = 0;
+    widgets.forEach((w) => {
+      const auto = w.style?.autoSize;
+      const left = auto ? w.pos.x - w.size.w / 2 : w.pos.x;
+      const top = auto ? w.pos.y - w.size.h / 2 : w.pos.y;
+      const right = auto ? w.pos.x + w.size.w / 2 : left + w.size.w;
+      const bottom = auto ? w.pos.y + w.size.h / 2 : top + w.size.h;
+
+      if (left < minX) minX = left;
+      if (top < minY) minY = top;
+      if (right > maxX) maxX = right;
+      if (bottom > maxY) maxY = bottom;
+    });
+
+    const padding = 2;
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(100, maxX + padding);
+    maxY = Math.min(100, maxY + padding);
+
+    const newGroup = {
+      id: nanoid(8),
+      type: 'group',
+      pos: { x: Number(minX.toFixed(2)), y: Number(minY.toFixed(2)) },
+      size: { w: Number((maxX - minX).toFixed(2)), h: Number((maxY - minY).toFixed(2)) },
+      style: { bgOpacity: 0.05, blur: 16, autoSize: false, borderRadius: 16 },
+      data: { title: 'Groupe', enable3D: false },
+      visible: true,
+    };
+
+    setProfile((prev) => {
+      const nextWidgets = prev.widgets.map((w) => {
+        if (ids.includes(w.id)) {
+          return { ...w, groupId: newGroup.id };
+        }
+        return w;
+      });
+      return { ...prev, widgets: [...nextWidgets, newGroup] };
+    });
+    setSelectedIds([newGroup.id]);
+  }, [profile.widgets]);
+
+  const handleUngroupWidget = useCallback((groupId) => {
+    setProfile(prev => {
+      const nextWidgets = prev.widgets.filter(w => w.id !== groupId).map(w => {
+        if (w.groupId === groupId) {
+          const { groupId: _, ...rest } = w;
+          return rest;
+        }
+        return w;
+      });
+      return { ...prev, widgets: nextWidgets };
+    });
+    setSelectedIds([]);
+  }, []);
 
   // Templates apply confirmation + history drawer state.
   const [pendingTemplate, setPendingTemplate] = useState(null);
@@ -319,18 +392,24 @@ export default function Editor() {
     (type) => {
       const instance = makeWidgetInstance(type);
       setProfile((prev) => ({ ...prev, widgets: [...prev.widgets, instance] }));
-      setSelectedId(instance.id);
+      setSelectedIds([instance.id]);
     },
     [setProfile],
   );
 
   const removeWidget = useCallback(
     (id) => {
-      setProfile((prev) => ({
-        ...prev,
-        widgets: prev.widgets.filter((w) => w.id !== id),
-      }));
-      setSelectedId((current) => (current === id ? null : current));
+      setProfile((prev) => {
+        const isGroup = prev.widgets.find(w => w.id === id)?.type === 'group';
+        let nextWidgets = prev.widgets.filter((w) => w.id !== id);
+        
+        if (isGroup) {
+           nextWidgets = nextWidgets.map(w => w.groupId === id ? { ...w, groupId: null } : w);
+        }
+        
+        return { ...prev, widgets: nextWidgets };
+      });
+      setSelectedIds((prev) => (prev.includes(id) ? [] : prev));
     },
     [setProfile],
   );
@@ -338,7 +417,7 @@ export default function Editor() {
   const resetProfile = useCallback(() => {
     if (!confirm('Reset the entire profile to defaults?')) return;
     setProfile(makeDefaultProfile());
-    setSelectedId(null);
+    setSelectedIds([]);
   }, [setProfile]);
 
   /* -------------------------------------------------------------------- */
@@ -446,8 +525,9 @@ export default function Editor() {
         <MusicPlayer music={profile.music} accent={accentHex} hideControls>
           <DragCanvas
             profile={profile}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selectedIds={selectedIds}
+            onSelect={handleSelect}
+            onSelectMultiple={handleSelectMultiple}
             onWidgetsMove={updateWidgets}
             onWidgetResize={(id, size) => updateWidget(id, { size })}
           />
@@ -485,8 +565,11 @@ export default function Editor() {
         profile={profile}
         activeSection={sidebarSection}
         onSectionChange={setSidebarSection}
+        selectedIds={selectedIds}
         selectedWidget={selectedWidget}
-        onSelectWidget={setSelectedId}
+        onSelectWidget={handleSelect}
+        onGroupWidgets={handleGroupWidgets}
+        onUngroupWidget={handleUngroupWidget}
         onToggleWidget={(id) =>
           updateWidget(id, {
             visible: !profile.widgets.find((w) => w.id === id)?.visible,

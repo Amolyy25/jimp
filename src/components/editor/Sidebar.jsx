@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, Trash2 } from 'lucide-react';
 import { WIDGET_CATALOG } from '../../utils/widgetDefaults.js';
 import WidgetPanel from './WidgetPanel.jsx';
 import StylePanel from './StylePanel.jsx';
@@ -26,6 +27,7 @@ import { listMyQuestions } from '../../utils/api.js';
 export default function Sidebar({
   profile,
   selectedWidget,
+  selectedIds,
   onSelectWidget,
   onToggleWidget,
   onAddWidget,
@@ -36,6 +38,8 @@ export default function Sidebar({
   onUpdateWidgetData,
   onUpdateWidgetStyle,
   onUpdateWidget,
+  onGroupWidgets,
+  onUngroupWidget,
   activeSection,
   onSectionChange,
   me,
@@ -46,7 +50,13 @@ export default function Sidebar({
 }) {
   return (
     <aside className="flex h-screen w-[380px] flex-col border-l border-white/5 bg-ink-900">
-      {selectedWidget ? (
+      {selectedIds && selectedIds.length > 1 ? (
+        <MultiSelectView 
+          selectedIds={selectedIds} 
+          onGroup={() => onGroupWidgets(selectedIds)} 
+          onBack={() => onSelectWidget(null)} 
+        />
+      ) : selectedWidget ? (
         <WidgetView
           profile={profile}
           widget={selectedWidget}
@@ -55,6 +65,7 @@ export default function Sidebar({
           onUpdateData={(patch) => onUpdateWidgetData(selectedWidget.id, patch)}
           onUpdateStyle={(patch) => onUpdateWidgetStyle(selectedWidget.id, patch)}
           onUpdateWidget={(patch) => onUpdateWidget(selectedWidget.id, patch)}
+          onUngroup={() => onUngroupWidget(selectedWidget.id)}
         />
       ) : (
         <GlobalView
@@ -76,6 +87,42 @@ export default function Sidebar({
         />
       )}
     </aside>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Multi-select view                                                          */
+/* -------------------------------------------------------------------------- */
+
+function MultiSelectView({ selectedIds, onGroup, onBack }) {
+  return (
+    <>
+      <div className="flex items-center justify-between border-b border-white/5 p-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/40 transition hover:bg-white/10 hover:text-white"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Sélection multiple</h2>
+            <div className="text-[11px] text-white/40">{selectedIds.length} widgets sélectionnés</div>
+          </div>
+        </div>
+      </div>
+      <div className="p-4">
+        <button
+          onClick={onGroup}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-discord px-4 py-3 text-xs font-bold text-white shadow-lg transition hover:brightness-110"
+        >
+          Créer un groupe
+        </button>
+        <p className="mt-4 text-[11px] leading-relaxed text-white/40">
+          Grouper ces widgets les fusionnera dans un conteneur déplaçable. Vous pourrez ensuite activer l'effet 3D ou définir une bordure globale.
+        </p>
+      </div>
+    </>
   );
 }
 
@@ -102,10 +149,6 @@ function GlobalView({
 }) {
   const hasQAWidget = !!profile?.widgets?.some((w) => w.type === 'qa');
 
-  // Light global poll for the pending count so the Inbox tab badge stays
-  // accurate even when the user is editing other sections. We only poll
-  // when authenticated AND a slug is claimed — no DB hit for anonymous
-  // editor sessions.
   const [pendingCount, setPendingCount] = useState(0);
   useEffect(() => {
     if (!me || !serverSlug) return;
@@ -430,7 +473,6 @@ function AccentEditor({ accent, onChange }) {
 }
 
 function shiftHue(hex) {
-  // Cheap "give me a different color" — flip a couple of channels.
   if (!hex || !hex.startsWith('#')) return '#3BA9FF';
   let h = hex.slice(1);
   if (h.length === 3) h = h.split('').map((c) => c + c).join('');
@@ -494,8 +536,6 @@ function fileToDataURL(file) {
   });
 }
 
-/* -------- toggle atoms (scoped to this file) -------- */
-
 function Toggle({ checked, onChange }) {
   return (
     <button
@@ -529,8 +569,6 @@ function ToggleRow({ title, subtitle, checked, onChange }) {
     </label>
   );
 }
-
-/* -------- widget list -------- */
 
 function WidgetListSection({
   profile,
@@ -621,11 +659,7 @@ function WidgetListSection({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Widget view — one widget selected                                          */
-/* -------------------------------------------------------------------------- */
-
-function WidgetView({ profile, widget, onBack, onRemove, onUpdateData, onUpdateStyle, onUpdateWidget }) {
+function WidgetView({ profile, widget, onBack, onRemove, onUpdateData, onUpdateStyle, onUpdateWidget, onUngroup }) {
   const [section, setSection] = useState('content');
 
   return (
@@ -643,15 +677,25 @@ function WidgetView({ profile, widget, onBack, onRemove, onUpdateData, onUpdateS
           <h2 className="text-lg font-semibold tracking-tight">
             {WIDGET_CATALOG[widget.type]?.label || widget.type}
           </h2>
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm('Delete this widget?')) onRemove();
-            }}
-            className="rounded-full p-2 text-white/40 transition hover:bg-red-500/20 hover:text-red-300"
-          >
-            <Trash />
-          </button>
+          <div className="flex gap-1.5">
+            {widget.type === 'group' && (
+              <button
+                onClick={onUngroup}
+                className="flex h-7 px-3 items-center justify-center rounded-lg bg-white/5 text-[10px] font-bold uppercase tracking-widest text-white/40 transition hover:bg-white/10 hover:text-white"
+              >
+                Dégrouper
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Delete this widget?')) onRemove();
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-500/40 transition hover:bg-red-500 hover:text-white"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

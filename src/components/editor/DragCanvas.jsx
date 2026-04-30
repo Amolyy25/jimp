@@ -29,8 +29,9 @@ const GUIDE_COLOR = 'rgba(88,101,242,0.9)';
 
 export default function DragCanvas({
   profile,
-  selectedId,
+  selectedIds,
   onSelect,
+  onSelectMultiple,
   onWidgetsMove,
   onWidgetResize,
 }) {
@@ -78,13 +79,15 @@ export default function DragCanvas({
           auto,
         );
         
-        const updates = [{ id: s.widget.id, patch: { pos: { x: round2(x), y: round2(y) } } }];
+        const updates = [];
         if (s.groupOrigins && s.groupOrigins.length > 0) {
             const actualDx = x - s.origin.x;
             const actualDy = y - s.origin.y;
             s.groupOrigins.forEach(go => {
                 updates.push({ id: go.id, patch: { pos: { x: round2(go.x + actualDx), y: round2(go.y + actualDy) } } });
             });
+        } else {
+            updates.push({ id: s.widget.id, patch: { pos: { x: round2(x), y: round2(y) } } });
         }
         onWidgetsMove(updates);
         setGuides(activeGuides);
@@ -118,7 +121,24 @@ export default function DragCanvas({
     (e, widget, mode) => {
       e.stopPropagation();
       e.preventDefault();
-      onSelect(widget.id);
+
+      if (e.altKey && mode === 'move') {
+        onSelectMultiple(widget.id);
+        return;
+      }
+
+      let draggingIds = [widget.id];
+      if (selectedIds && selectedIds.includes(widget.id) && mode === 'move') {
+         draggingIds = selectedIds;
+      } else {
+         onSelect(widget.id);
+      }
+
+      const draggedWidgets = profile.widgets.filter(w => draggingIds.includes(w.id));
+      const groupIds = draggedWidgets.filter(w => w.type === 'group').map(w => w.id);
+      const children = profile.widgets.filter(w => groupIds.includes(w.groupId));
+      const allDraggedWidgets = [...new Set([...draggedWidgets, ...children])];
+
       dragState.current = {
         mode,
         widget,
@@ -128,14 +148,14 @@ export default function DragCanvas({
           mode === 'move'
             ? { x: widget.pos.x, y: widget.pos.y }
             : { w: widget.size.w, h: widget.size.h },
-        groupOrigins: mode === 'move' && widget.type === 'group' 
-            ? profile.widgets.filter(w => w.groupId === widget.id).map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y })) 
+        groupOrigins: mode === 'move' 
+            ? allDraggedWidgets.map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y })) 
             : [],
       };
       document.body.style.cursor = mode === 'resize' ? 'nwse-resize' : 'grabbing';
       document.body.style.userSelect = 'none';
     },
-    [onSelect],
+    [onSelect, onSelectMultiple, selectedIds, profile.widgets],
   );
 
   const visibleWidgets = useMemo(
@@ -180,8 +200,8 @@ export default function DragCanvas({
                       key={widget.id}
                       groupWidget={widget}
                       childWidgets={children}
-                      isSelected={widget.id === selectedId}
-                      selectedId={selectedId}
+                      isSelected={selectedIds?.includes(widget.id)}
+                      selectedIds={selectedIds}
                       startDrag={startDrag}
                       accent={accent}
                       accentCss={accentCss}
@@ -194,7 +214,7 @@ export default function DragCanvas({
                  <WidgetNode 
                    key={widget.id}
                    widget={widget}
-                   isSelected={widget.id === selectedId}
+                   isSelected={selectedIds?.includes(widget.id)}
                    startDrag={startDrag}
                    accent={accent}
                    accentCss={accentCss}
@@ -218,7 +238,7 @@ export default function DragCanvas({
   );
 }
 
-function GroupLayer({ groupWidget, childWidgets, isSelected, selectedId, startDrag, accent, accentCss, index }) {
+function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startDrag, accent, accentCss, index }) {
   const auto = !!groupWidget.style?.autoSize;
   const enable3D = groupWidget.data?.enable3D;
 
@@ -248,7 +268,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedId, startDr
   const cx = auto ? groupWidget.pos.x : groupWidget.pos.x + groupWidget.size.w / 2;
   const cy = auto ? groupWidget.pos.y : groupWidget.pos.y + groupWidget.size.h / 2;
 
-  const isChildSelected = childWidgets.some(w => w.id === selectedId);
+  const isChildSelected = childWidgets.some(w => selectedIds?.includes(w.id));
 
   return (
     <motion.div 
@@ -275,7 +295,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedId, startDr
         <WidgetNode 
           key={w.id} 
           widget={w} 
-          isSelected={w.id === selectedId} 
+          isSelected={selectedIds?.includes(w.id)} 
           startDrag={startDrag} 
           accent={accent} 
           accentCss={accentCss} 
