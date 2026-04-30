@@ -99,9 +99,6 @@ export function registerDiscordAuthRoutes(app, prisma, authenticate, helpers) {
       let isNew = false;
 
       if (!user) {
-        // 2. No link yet — does an account with this email already exist?
-        //    If so, attach the Discord identity to it (lets users who
-        //    registered with email/password link Discord later).
         user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (user) {
           user = await prisma.user.update({
@@ -110,6 +107,7 @@ export function registerDiscordAuthRoutes(app, prisma, authenticate, helpers) {
               discordId: profile.id,
               discordUsername: displayName,
               discordAvatar: profile.avatar || null,
+              emailVerified: true, // Discord already verified this email
             },
           });
         } else {
@@ -123,6 +121,7 @@ export function registerDiscordAuthRoutes(app, prisma, authenticate, helpers) {
             discordId: profile.id,
             discordUsername: displayName,
             discordAvatar: profile.avatar || null,
+            emailVerified: true, // Discord already verified this email
           });
         }
       } else {
