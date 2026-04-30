@@ -139,7 +139,7 @@ export default function ClickerGameWidget({ widget, accent, slug }) {
   const progress = target > 0 ? Math.min(1, score / target) : 0;
   const rankLine = isLive
     ? rank
-      ? `Vous êtes #${rank.toLocaleString()} sur ${total.toLocaleString()}`
+      ? `Ce profil est #${rank.toLocaleString()} sur ${total.toLocaleString()}`
       : 'Premier clic = entrée au classement'
     : 'Aperçu — les clics comptent en ligne';
 
