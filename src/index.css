@@ -127,6 +127,17 @@ input[type='color']::-webkit-color-swatch {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
 }
+
+/* Fix for Windows: Ensure select dropdowns are readable */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
 /* Entry Animations */
 @keyframes entry-fade {
   from { opacity: 0; }

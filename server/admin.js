@@ -213,6 +213,9 @@ export function registerAdminRoutes(app, prisma, authenticate) {
       });
       
       if (banned) {
+        // Automatically delete the profile to clear space and remove content
+        await prisma.profile.deleteMany({ where: { userId: id } });
+
         sendBanEmail(user.email, reason).catch((err) => {
           console.error('[admin] failed to send ban email:', err.message);
         });

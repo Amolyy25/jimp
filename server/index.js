@@ -440,9 +440,18 @@ app.get('/api/profiles/:slug', async (req, res) => {
     return res.json(cached.data);
   }
 
-  const profile = await prisma.profile.findUnique({ where: { slug: normalizedSlug } });
+  const profile = await prisma.profile.findUnique({ 
+    where: { slug: normalizedSlug },
+    include: { user: { select: { isBanned: true } } }
+  });
+
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
-  if (profile.isBanned) return res.status(403).json({ error: 'Ce profil a été suspendu pour non-respect des conditions d\'utilisation.' });
+  
+  if (profile.isBanned || profile.user?.isBanned) {
+    // If banned, we don't cache and we block immediately
+    profileCache.delete(normalizedSlug); 
+    return res.status(403).json({ error: 'Ce profil a été suspendu pour non-respect des conditions d\'utilisation.' });
+  }
 
   const responseData = { ...profile.data, __ownerId: profile.userId };
   profileCache.set(normalizedSlug, { data: responseData, timestamp: now });
