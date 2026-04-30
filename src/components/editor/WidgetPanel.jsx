@@ -652,15 +652,6 @@ function ClickerGameForm({ data, onUpdate }) {
       />
       <div className="grid grid-cols-2 gap-3">
         <TextInput
-          label="+ per click"
-          value={String(data.increment ?? 1)}
-          onChange={(v) => {
-            const n = Math.max(1, Math.min(1_000_000, parseInt(v, 10) || 1));
-            onUpdate({ increment: n });
-          }}
-          placeholder="1"
-        />
-        <TextInput
           label="Goal (0 = none)"
           value={String(data.target ?? 0)}
           onChange={(v) => {

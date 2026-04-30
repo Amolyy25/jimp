@@ -14,13 +14,13 @@ import { getClickerScore, postClickerBatch } from '../../utils/api.js';
  */
 const BATCH_FLUSH_MS = 800;
 const BATCH_MAX = 50; // matches the server's MAX_CLICKS_PER_REQ
-const RANK_REFRESH_MS = 15_000;
+const RANK_REFRESH_MS = 5_000;
 
 export default function ClickerGameWidget({ widget, accent, slug }) {
   const data = widget.data || {};
   const emoji = data.emoji || '🍪';
   const label = data.label || 'Click me!';
-  const increment = clamp(parseInt(data.increment, 10) || 1, 1, 1_000_000);
+  const increment = 1;
   const target = clamp(parseInt(data.target, 10) || 0, 0, 1_000_000_000);
   const accentColor = typeof accent === 'string' ? accent : '#5865F2';
   const isLive = !!slug;
@@ -35,6 +35,7 @@ export default function ClickerGameWidget({ widget, accent, slug }) {
   const pressTimer = useRef(null);
   const pendingRef = useRef(0);     // clicks not yet sent to server
   const flushTimer = useRef(null);
+  const isFlushingRef = useRef(false);
 
   // Hydrate from server (live mode only).
   useEffect(() => {
@@ -77,10 +78,15 @@ export default function ClickerGameWidget({ widget, accent, slug }) {
   );
 
   const flushBatch = async () => {
+    if (isFlushingRef.current || !isLive) return;
     const count = pendingRef.current;
-    if (!count || !isLive) return;
+    if (!count) return;
+
+    isFlushingRef.current = true;
     pendingRef.current = 0;
+
     const res = await postClickerBatch(slug, count);
+
     if (res) {
       // Trust the server's view to reconcile any drift, but keep the user's
       // optimistic count if it's still ahead (more clicks happened during
@@ -88,11 +94,24 @@ export default function ClickerGameWidget({ widget, accent, slug }) {
       setScore((prev) => Math.max(prev, res.score ?? 0));
       setRank(res.rank ?? null);
       setTotal(res.total ?? 0);
+    } else {
+      // API failed — restore the clicks so they get picked up by the next flush.
+      pendingRef.current += count;
+    }
+
+    isFlushingRef.current = false;
+
+    // If more clicks happened while we were talking to the server, schedule
+    // another flush.
+    if (pendingRef.current > 0) {
+      scheduleFlush();
     }
   };
 
   const scheduleFlush = () => {
     clearTimeout(flushTimer.current);
+    if (isFlushingRef.current) return;
+
     if (pendingRef.current >= BATCH_MAX) {
       flushBatch();
       return;

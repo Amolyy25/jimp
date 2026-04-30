@@ -22,6 +22,38 @@ const LEADERBOARD_MAX = 100;
 export function registerClickerRoutes(app, prisma, opts = {}) {
   const ingestLimiter = opts.ingestLimiter || ((_req, _res, next) => next());
 
+  // Public leaderboard. Only profiles that have actually been clicked at
+  // least once show up — otherwise every brand-new profile would land on
+  // the board with 0 and dilute the page.
+  app.get('/api/clicker/leaderboard', async (req, res) => {
+    const requested = parseInt(req.query?.limit, 10);
+    const limit = Number.isFinite(requested)
+      ? Math.max(1, Math.min(LEADERBOARD_MAX, requested))
+      : LEADERBOARD_DEFAULT;
+
+    const rows = await prisma.profile.findMany({
+      where: { clickerScore: { gt: 0 } },
+      select: { slug: true, clickerScore: true, data: true },
+      orderBy: { clickerScore: 'desc' },
+      take: limit,
+    });
+
+    const total = await prisma.profile.count({ where: { clickerScore: { gt: 0 } } });
+
+    const entries = rows.map((row, i) => {
+      const avatar = row.data?.widgets?.find?.((w) => w?.type === 'avatar');
+      return {
+        rank: i + 1,
+        slug: row.slug,
+        username: avatar?.data?.username || row.slug,
+        avatarUrl: avatar?.data?.avatarUrl || '',
+        score: row.clickerScore,
+      };
+    });
+
+    res.json({ entries, total });
+  });
+
   // POST: increment the counter for :slug by `count` (default 1, max 50).
   app.post('/api/clicker/:slug', ingestLimiter, async (req, res) => {
     const slug = String(req.params.slug || '').toLowerCase();
@@ -62,38 +94,6 @@ export function registerClickerRoutes(app, prisma, opts = {}) {
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
     const rankInfo = await computeRank(prisma, profile.clickerScore);
     res.json({ score: profile.clickerScore, ...rankInfo });
-  });
-
-  // Public leaderboard. Only profiles that have actually been clicked at
-  // least once show up — otherwise every brand-new profile would land on
-  // the board with 0 and dilute the page.
-  app.get('/api/clicker/leaderboard', async (req, res) => {
-    const requested = parseInt(req.query?.limit, 10);
-    const limit = Number.isFinite(requested)
-      ? Math.max(1, Math.min(LEADERBOARD_MAX, requested))
-      : LEADERBOARD_DEFAULT;
-
-    const rows = await prisma.profile.findMany({
-      where: { clickerScore: { gt: 0 } },
-      select: { slug: true, clickerScore: true, data: true },
-      orderBy: { clickerScore: 'desc' },
-      take: limit,
-    });
-
-    const total = await prisma.profile.count({ where: { clickerScore: { gt: 0 } } });
-
-    const entries = rows.map((row, i) => {
-      const avatar = row.data?.widgets?.find?.((w) => w?.type === 'avatar');
-      return {
-        rank: i + 1,
-        slug: row.slug,
-        username: avatar?.data?.username || row.slug,
-        avatarUrl: avatar?.data?.avatarUrl || '',
-        score: row.clickerScore,
-      };
-    });
-
-    res.json({ entries, total });
   });
 }
 
