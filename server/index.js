@@ -53,6 +53,7 @@ import {
   approxJsonBytes,
 } from './validate.js';
 import { generateVerificationToken, sendVerificationEmail } from './mailer.js';
+import { clientIp } from './rateLimit.js';
 
 const { PrismaClient } = pkg;
 
@@ -423,6 +424,7 @@ app.get('/api/profiles/:slug', async (req, res) => {
 
   const profile = await prisma.profile.findUnique({ where: { slug: normalizedSlug } });
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  if (profile.isBanned) return res.status(403).json({ error: 'Ce profil a été suspendu pour non-respect des conditions d\'utilisation.' });
 
   const responseData = { ...profile.data, __ownerId: profile.userId };
   profileCache.set(normalizedSlug, { data: responseData, timestamp: now });
@@ -594,6 +596,34 @@ registerDiscordAuthRoutes(app, prisma, authenticate, { issueSession });
 registerTwitchRoutes(app);
 registerImportRoutes(app, authenticate, { writeLimiter });
 registerQrRoutes(app, prisma);
+
+app.post('/api/reports', async (req, res) => {
+  const { slug, reason, details } = req.body || {};
+  if (!slug || !reason) {
+    return res.status(400).json({ error: 'Slug and reason are required' });
+  }
+
+  try {
+    const profile = await prisma.profile.findUnique({
+      where: { slug: slug.toLowerCase().trim() },
+    });
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+    await prisma.report.create({
+      data: {
+        profileId: profile.id,
+        reason: String(reason).slice(0, 100),
+        details: details ? String(details).slice(0, 1000) : null,
+        reporterIp: clientIp(req),
+      },
+    });
+
+    res.json({ success: true, message: 'Report submitted successfully' });
+  } catch (err) {
+    console.error('[reports]', err);
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
+});
 registerAnalyticsRoutes(app, prisma, authenticate, { ingestLimiter });
 registerVersionRoutes(app, prisma, authenticate, { writeLimiter });
 registerSocialRoutes(app, prisma, authenticate, { writeLimiter });

@@ -26,6 +26,11 @@ model User {
   // have a local password. They sign in via the Discord button instead.
   password            String?
   role                Role      @default(USER)
+  
+  // Moderation
+  isBanned            Boolean   @default(false)
+  banReason           String?
+  
   createdAt           DateTime  @default(now())
 
   // Email validation flow
@@ -58,6 +63,11 @@ model Profile {
   userId        String?  @unique
   user          User?    @relation(fields: [userId], references: [id])
   slugChangedAt DateTime @default(now())
+  
+  // Moderation
+  isBanned      Boolean  @default(false)
+  isNsfw        Boolean  @default(false)
+  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -72,6 +82,7 @@ model Profile {
   guestbook     GuestbookEntry[]
   questions     Question[]
   askerBlocks   AskerBlock[]
+  reports       Report[]
 
   @@index([slug])
   @@index([clickerScore])
@@ -186,4 +197,24 @@ model GuestbookEntry {
 
   @@unique([profileId, authorId])
   @@index([profileId, createdAt])
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  profileId     String
+  profile       Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  reason        String
+  details       String?
+  reporterIp    String?
+  status        ReportStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+
+  @@index([profileId])
+  @@index([status])
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
 }

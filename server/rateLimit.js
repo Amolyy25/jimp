@@ -26,7 +26,7 @@ const buckets = new Map(); // key → { count, resetAt }
  * the proxy is trusted (Railway sets x-forwarded-for; we still take only the
  * first hop). Falls back to req.ip / socket.remoteAddress.
  */
-function clientIp(req) {
+export function clientIp(req) {
   const xff = req.headers['x-forwarded-for'];
   if (typeof xff === 'string' && xff.length > 0) {
     return xff.split(',')[0].trim();

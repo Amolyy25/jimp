@@ -14,6 +14,8 @@
  * already-public handle) and createdAt — never by email.
  */
 
+import { sendBanEmail } from './mailer.js';
+
 const RECENT_LIMIT = 20;
 const DAILY_BUCKETS_DAYS = 30;
 const TOP_PROFILES_LIMIT = 10;
@@ -175,12 +177,46 @@ export function registerAdminRoutes(app, prisma, authenticate) {
           username: u.username,
           slug: u.profile?.slug || null,
           role: u.role,
+          isBanned: u.isBanned,
           createdAt: u.createdAt,
         })),
       });
     } catch (err) {
       console.error('[admin/stats]', err);
       res.status(500).json({ error: 'Failed to compute stats' });
+    }
+  });
+
+  // Ban or Unban a user
+  app.post('/api/admin/users/:id/ban', authenticate, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { banned, reason } = req.body;
+    try {
+      const user = await prisma.user.update({
+        where: { id },
+        data: { isBanned: !!banned, banReason: reason || null },
+      });
+      
+      if (banned) {
+        sendBanEmail(user.email, reason).catch((err) => {
+          console.error('[admin] failed to send ban email:', err.message);
+        });
+      }
+
+      res.json({ success: true, message: banned ? 'User banned' : 'User unbanned' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+
+  // Delete a profile (keeping the user account)
+  app.delete('/api/admin/profiles/:id', authenticate, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    try {
+      const profile = await prisma.profile.delete({ where: { id } });
+      res.json({ success: true, message: `Profile ${profile.slug} deleted` });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete profile' });
     }
   });
 }

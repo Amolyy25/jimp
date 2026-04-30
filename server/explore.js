@@ -31,8 +31,14 @@ export function registerExploreRoutes(app, prisma) {
         ? [{ clickerScore: 'desc' }, { updatedAt: 'desc' }]
         : [{ updatedAt: 'desc' }];
 
+    const where = {
+      isBanned: false,
+      isNsfw: false,
+    };
+
     const [rows, total] = await Promise.all([
       prisma.profile.findMany({
+        where,
         select: {
           slug: true,
           data: true,
@@ -43,7 +49,7 @@ export function registerExploreRoutes(app, prisma) {
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.profile.count(),
+      prisma.profile.count({ where }),
     ]);
 
     const entries = rows.map((row) => {
