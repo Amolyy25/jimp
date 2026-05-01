@@ -61,6 +61,7 @@ export function registerExploreRoutes(app, prisma) {
         bio: avatar?.data?.bio || '',
         avatarUrl: avatar?.data?.avatarUrl || '',
         accent: typeof accent === 'string' ? accent : accent?.value || accent?.from || '#5865F2',
+        widgets: (row.data?.widgets || []).map((w) => w.type),
         clickerScore: row.clickerScore,
         updatedAt: row.updatedAt,
       };

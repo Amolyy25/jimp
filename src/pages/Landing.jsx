@@ -54,9 +54,9 @@ function Nav() {
       <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-3">
         <Wordmark />
         <div className="hidden items-center gap-8 md:flex">
+          <NavLink href="/explore" isExternal>Explore</NavLink>
           <NavLink href="#features">Features</NavLink>
           <NavLink href="#how">How it works</NavLink>
-          <NavLink href="#pricing">Pricing</NavLink>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -78,7 +78,17 @@ function Nav() {
   );
 }
 
-function NavLink({ href, children }) {
+function NavLink({ href, children, isExternal }) {
+  if (isExternal) {
+    return (
+      <Link
+        to={href}
+        className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/50 transition hover:text-white"
+      >
+        {children}
+      </Link>
+    );
+  }
   return (
     <a
       href={href}

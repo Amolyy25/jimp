@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getClickerScore, postClickerBatch } from '../../utils/api.js';
 
 /**
@@ -209,8 +210,19 @@ export default function ClickerGameWidget({ widget, accent, slug }) {
         </div>
       )}
 
-      <div className="text-center text-[10px] opacity-70" style={{ color: accentColor }}>
-        {rankLine}
+      <div className="flex flex-col items-center gap-1">
+        <div className="text-center text-[10px] opacity-70" style={{ color: accentColor }}>
+          {rankLine}
+        </div>
+        {isLive && (
+          <Link 
+            to="/clicker" 
+            className="text-[9px] font-bold uppercase tracking-wider opacity-40 hover:opacity-100 transition-opacity"
+            style={{ color: accentColor }}
+          >
+            Voir le classement
+          </Link>
+        )}
       </div>
 
       <style>{`

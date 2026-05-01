@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Compass, Clock, Trophy } from 'lucide-react';
+import { 
+  ArrowUpRight, 
+  Compass, 
+  Clock, 
+  Trophy,
+  Music,
+  MessageSquare,
+  Cloud,
+  Share2,
+  Award,
+  HelpCircle,
+  Tv,
+  Gamepad2,
+  MousePointer2,
+  LayoutGrid,
+  Activity,
+  Server
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getExploreFeed } from '../utils/api.js';
 
@@ -198,6 +215,12 @@ function SortPill({ active, onClick, icon: Icon, children }) {
 
 function ProfileCard({ profile, index }) {
   const accent = profile.accent || '#5865F2';
+  
+  // Dedup and filter out 'avatar' and 'group' as they are structural/default
+  const displayWidgets = Array.from(new Set(profile.widgets || []))
+    .filter(type => type !== 'avatar' && type !== 'group')
+    .slice(0, 6);
+
   return (
     <motion.div
       layout
@@ -212,17 +235,17 @@ function ProfileCard({ profile, index }) {
     >
       <Link
         to={`/${profile.slug}`}
-        className="group relative flex flex-col gap-4 overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all duration-500 hover:border-white/10 hover:bg-white/[0.04]"
+        className="group relative flex flex-col h-full gap-5 overflow-hidden rounded-[2rem] border border-white/5 bg-white/[0.02] p-6 transition-all duration-500 hover:border-white/10 hover:bg-white/[0.04] hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)]"
       >
         <span
-          className="pointer-events-none absolute -inset-px rounded-3xl opacity-0 transition-opacity duration-700 group-hover:opacity-40"
+          className="pointer-events-none absolute -inset-px rounded-[2rem] opacity-0 transition-opacity duration-700 group-hover:opacity-40"
           style={{ background: `radial-gradient(circle at 50% 0%, ${accent}33, transparent 70%)` }}
         />
 
         <div className="flex items-center gap-4">
           <Avatar url={profile.avatarUrl} name={profile.username} accent={accent} />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1 truncate text-[15px] font-bold tracking-tight">
+            <div className="flex items-center gap-1 truncate text-[16px] font-bold tracking-tight">
               <span className="truncate">@{profile.username}</span>
               <ArrowUpRight className="h-4 w-4 flex-none text-white/20 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white" />
             </div>
@@ -232,21 +255,73 @@ function ProfileCard({ profile, index }) {
           </div>
         </div>
 
-        {profile.bio && (
-          <p className="line-clamp-2 text-xs leading-relaxed text-white/50 group-hover:text-white/70 transition-colors">
+        {profile.bio ? (
+          <p className="line-clamp-2 text-xs leading-relaxed text-white/40 group-hover:text-white/70 transition-colors h-8">
             {profile.bio}
           </p>
+        ) : (
+          <div className="h-8" /> 
         )}
 
-        {profile.clickerScore > 0 && (
-          <div className="mt-auto flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/30">
-            <div className="h-1 w-1 rounded-full bg-[#5865F2]" />
-            {profile.clickerScore.toLocaleString()} clicks recorded
+        {displayWidgets.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {displayWidgets.map((type, i) => (
+              <div 
+                key={i}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 border border-white/5 text-white/40 transition-colors group-hover:border-white/10 group-hover:text-white/60"
+                title={type}
+              >
+                <WidgetIcon type={type} className="h-3.5 w-3.5" />
+              </div>
+            ))}
+            {(profile.widgets?.length || 0) > displayWidgets.length + 2 && (
+              <div className="flex h-7 px-2 items-center justify-center rounded-lg bg-white/5 border border-white/5 text-[9px] font-mono text-white/30 uppercase tracking-tighter">
+                +{(profile.widgets?.length || 0) - displayWidgets.length - 1}
+              </div>
+            )}
           </div>
         )}
+
+        <div className="mt-auto pt-4 flex items-center justify-between border-t border-white/[0.03]">
+          {profile.clickerScore > 0 ? (
+            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/20">
+              <MousePointer2 className="h-3 w-3" />
+              <span className="tabular-nums">{profile.clickerScore.toLocaleString()} clics</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/10">
+               Nouveau profil
+            </div>
+          )}
+          <div 
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: accent, boxShadow: `0 0 8px ${accent}` }}
+          />
+        </div>
       </Link>
     </motion.div>
   );
+}
+
+function WidgetIcon({ type, ...props }) {
+  const icons = {
+    badges: Award,
+    socials: Share2,
+    discordServers: Server,
+    games: Gamepad2,
+    clock: Clock,
+    weather: Cloud,
+    nowPlaying: Music,
+    musicProgress: Activity,
+    visitorCounter: LayoutGrid,
+    discordPresence: Server, // fallback
+    twitchStream: Tv,
+    guestbook: MessageSquare,
+    qa: HelpCircle,
+    clickerGame: MousePointer2,
+  };
+  const Icon = icons[type] || Activity;
+  return <Icon {...props} />;
 }
 
 function Avatar({ url, name, accent }) {

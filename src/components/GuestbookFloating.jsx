@@ -59,21 +59,25 @@ export default function GuestbookFloating({ slug, accent }) {
         <Heart className="h-3 w-3" style={{ color: accent || '#5865F2' }} />
         <span className="tabular-nums">{state.count}</span>
       </div>
-      {me && (
-        <button
-          type="button"
-          onClick={toggle}
-          disabled={busy}
-          className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-bold text-white shadow-lg backdrop-blur-xl transition disabled:opacity-50"
-          style={{
-            background: state.following ? 'rgba(255,255,255,0.08)' : (accent || '#5865F2'),
-            border: state.following ? '1px solid rgba(255,255,255,0.12)' : 'none',
-          }}
-        >
-          {state.following ? <UserCheck className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
-          {state.following ? 'Following' : 'Follow'}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => {
+          if (!me) {
+            window.location.href = '/register';
+            return;
+          }
+          toggle();
+        }}
+        disabled={busy}
+        className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-bold text-white shadow-lg backdrop-blur-xl transition disabled:opacity-50"
+        style={{
+          background: state.following ? 'rgba(255,255,255,0.08)' : (accent || '#5865F2'),
+          border: state.following ? '1px solid rgba(255,255,255,0.12)' : 'none',
+        }}
+      >
+        {state.following ? <UserCheck className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+        {state.following ? 'Following' : 'Follow'}
+      </button>
     </div>
   );
 }
