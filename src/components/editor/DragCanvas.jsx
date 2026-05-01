@@ -329,8 +329,8 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
   const y = useMotionValue(0);
   const mouseXSpring = useSpring(x, { stiffness: 150, damping: 20 });
   const mouseYSpring = useSpring(y, { stiffness: 150, damping: 20 });
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['15deg', '-15deg']);
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-15deg', '15deg']);
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['25deg', '-25deg']);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-25deg', '25deg']);
 
   useEffect(() => {
     if (!enable3D) {

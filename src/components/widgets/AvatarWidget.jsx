@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useScrambleText } from '../../hooks/useScrambleText.js';
 import { ShieldCheck, Sparkles } from 'lucide-react';
 import nitroIcon from '../../image/Nitro_badge.webp';
+import earlyIcon from '../../image/Early_badge.png';
 
 /**
  * Avatar + identity block.
@@ -229,6 +230,7 @@ function SpecialBadge({ type, label, accent }) {
 
   const config = configs[type] || configs.staff;
   const Icon = config.icon;
+  const isImage = type === 'early';
 
   return (
     <div 
@@ -240,7 +242,11 @@ function SpecialBadge({ type, label, accent }) {
       }}
       title={label}
     >
-      <Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
+      {isImage ? (
+        <img src={earlyIcon} alt={label} className="h-4 w-4 object-contain" />
+      ) : (
+        <Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
+      )}
       
       {/* Tooltip */}
       <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 scale-90 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">

@@ -244,6 +244,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                         playing={playing}
                         badges={profile.badges || []}
                         index={i}
+                        visibleWidgets={visibleWidgets}
                       />
                     );
                  }
@@ -280,7 +281,7 @@ function renderWidget(widget, ctx) {
   return <Component widget={widget} {...ctx} />;
 }
 
-function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, badges, index }) {
+function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, badges, index, visibleWidgets }) {
   const auto = !!groupWidget.style?.autoSize;
   const enable3D = groupWidget.data?.enable3D;
 
@@ -288,8 +289,8 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
   const y = useMotionValue(0);
   const mouseXSpring = useSpring(x, { stiffness: 150, damping: 20 });
   const mouseYSpring = useSpring(y, { stiffness: 150, damping: 20 });
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['15deg', '-15deg']);
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-15deg', '15deg']);
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ['25deg', '-25deg']);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ['-25deg', '25deg']);
 
   useEffect(() => {
     if (!enable3D) {
@@ -345,19 +346,39 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
         badges={badges}
         index={index}
       />
-      {childWidgets.map((w, j) => (
-        <WidgetNodeView 
-          key={w.id} 
-          w={w} 
-          i={index + 1 + j}
-          accent={accent} 
-          accentCss={accentCss} 
-          ownerId={ownerId}
-          slug={slug}
-          playing={playing}
-          badges={badges}
-        />
-      ))}
+      {childWidgets.map((w, j) => {
+        if (w.type === 'group') {
+          const subChildren = visibleWidgets.filter(sw => sw.groupId === w.id);
+          return (
+            <GroupLayerView 
+              key={w.id}
+              groupWidget={w}
+              childWidgets={subChildren}
+              accent={accent}
+              accentCss={accentCss}
+              ownerId={ownerId}
+              slug={slug}
+              playing={playing}
+              badges={badges}
+              index={index + 1 + j}
+              visibleWidgets={visibleWidgets}
+            />
+          );
+        }
+        return (
+          <WidgetNodeView 
+            key={w.id} 
+            w={w} 
+            i={index + 1 + j}
+            accent={accent} 
+            accentCss={accentCss} 
+            ownerId={ownerId}
+            slug={slug}
+            playing={playing}
+            badges={badges}
+          />
+        );
+      })}
     </motion.div>
   );
 }
@@ -395,6 +416,7 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badge
 
   return (
     <div
+      id={`widget-${w.id}`}
       data-widget-type={w.type}
       style={wrapperStyle}
       className={`absolute z-20 overflow-visible transition-shadow duration-300 ${isGroup ? 'pointer-events-none' : 'pointer-events-auto'}`}
