@@ -212,42 +212,25 @@ function NitroBadge({ accent }) {
   );
 }
 
-function SpecialBadge({ type, label, accent }) {
-  const configs = {
-    early: {
-      icon: Sparkles,
-      color: '#FFD700', // Gold
-      bg: 'rgba(255, 215, 0, 0.15)',
-      border: 'rgba(255, 215, 0, 0.3)'
-    },
-    staff: {
-      icon: ShieldCheck,
-      color: '#5865F2', // Discord Blue
-      bg: 'rgba(88, 101, 242, 0.15)',
-      border: 'rgba(88, 101, 242, 0.3)'
-    }
-  };
-
-  const config = configs[type] || configs.staff;
-  const Icon = config.icon;
+function SpecialBadge({ type, label }) {
   const isImage = type === 'early';
+  const Icon = type === 'staff' ? ShieldCheck : null;
 
   return (
-    <div 
-      className="group relative flex h-6 w-6 items-center justify-center rounded-lg border transition-all duration-300 hover:scale-110"
-      style={{ 
-        backgroundColor: config.bg, 
-        borderColor: config.border,
-        boxShadow: `0 0 12px ${config.bg}`
-      }}
-      title={label}
-    >
+    <div className="group relative flex h-5 w-5 flex-shrink-0 items-center justify-center transition-all duration-300 hover:scale-110">
       {isImage ? (
-        <img src={earlyIcon} alt={label} className="h-4 w-4 object-contain" />
-      ) : (
-        <Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
-      )}
-      
+        <img
+          src={earlyIcon}
+          alt={label}
+          className="h-full w-full object-contain drop-shadow-[0_0_8px_rgba(255,215,0,0.4)]"
+        />
+      ) : Icon ? (
+        <Icon 
+          className="h-4 w-4 drop-shadow-[0_0_8px_rgba(88,101,242,0.4)]" 
+          style={{ color: '#5865F2' }} 
+        />
+      ) : null}
+
       {/* Tooltip */}
       <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 scale-90 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">
         <div className="whitespace-nowrap rounded-md bg-black/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-xl ring-1 ring-white/10">
