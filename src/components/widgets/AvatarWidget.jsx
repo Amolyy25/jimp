@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useScrambleText } from '../../hooks/useScrambleText.js';
+import { ShieldCheck, Sparkles } from 'lucide-react';
+import nitroIcon from '../../image/Nitro_badge.webp';
 
 /**
  * Avatar + identity block.
@@ -7,7 +9,7 @@ import { useScrambleText } from '../../hooks/useScrambleText.js';
  * letter-spaced bio underneath. Optional Nitro badge sits next to the name.
  * A pulsing ring surrounds the avatar while music plays.
  */
-export default function AvatarWidget({ widget, musicPlaying, accent, accentCss }) {
+export default function AvatarWidget({ widget, musicPlaying, accent, accentCss, badges }) {
   const { 
     layout = 'center', 
     textAlign = 'center',
@@ -173,7 +175,12 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss }
           >
             {scrambledName}
           </h1>
-          {hasNitro && <NitroBadge accent={ringColor} />}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {hasNitro && <NitroBadge accent={ringColor} />}
+            {badges?.map(badge => (
+               <SpecialBadge key={badge.id} type={badge.id} label={badge.label} accent={ringColor} />
+            ))}
+          </div>
         </div>
         {bio && (
           <p
@@ -196,11 +203,52 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss }
 function NitroBadge({ accent }) {
   return (
     <img
-      src="https://cdn.discordapp.com/badges/2ba85e8026a8614b640c2837bcdfe21b.png"
+      src={nitroIcon}
       alt="Discord Nitro"
       title="Discord Nitro"
-      className="h-6 w-6 object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
+      className="h-5 w-5 object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"
     />
+  );
+}
+
+function SpecialBadge({ type, label, accent }) {
+  const configs = {
+    early: {
+      icon: Sparkles,
+      color: '#FFD700', // Gold
+      bg: 'rgba(255, 215, 0, 0.15)',
+      border: 'rgba(255, 215, 0, 0.3)'
+    },
+    staff: {
+      icon: ShieldCheck,
+      color: '#5865F2', // Discord Blue
+      bg: 'rgba(88, 101, 242, 0.15)',
+      border: 'rgba(88, 101, 242, 0.3)'
+    }
+  };
+
+  const config = configs[type] || configs.staff;
+  const Icon = config.icon;
+
+  return (
+    <div 
+      className="group relative flex h-6 w-6 items-center justify-center rounded-lg border transition-all duration-300 hover:scale-110"
+      style={{ 
+        backgroundColor: config.bg, 
+        borderColor: config.border,
+        boxShadow: `0 0 12px ${config.bg}`
+      }}
+      title={label}
+    >
+      <Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
+      
+      {/* Tooltip */}
+      <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 scale-90 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">
+        <div className="whitespace-nowrap rounded-md bg-black/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-xl ring-1 ring-white/10">
+          {label}
+        </div>
+      </div>
+    </div>
   );
 }
 

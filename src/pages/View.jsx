@@ -181,7 +181,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
     return () => document.removeEventListener('click', onClick, true);
   }, [slug]);
 
-  const ctx = { musicPlaying: playing, accent, accentCss, ownerId, slug };
+  const ctx = { musicPlaying: playing, accent, accentCss, ownerId, slug, badges: profile.badges || [] };
   const customCss = profile.theme?.customCss || '';
 
   return (
@@ -242,6 +242,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                         ownerId={ownerId}
                         slug={slug}
                         playing={playing}
+                        badges={profile.badges || []}
                         index={i}
                       />
                     );
@@ -257,6 +258,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                      ownerId={ownerId}
                      slug={slug}
                      playing={playing}
+                     badges={profile.badges || []}
                    />
                  );
               });
@@ -278,7 +280,7 @@ function renderWidget(widget, ctx) {
   return <Component widget={widget} {...ctx} />;
 }
 
-function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, index }) {
+function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, badges, index }) {
   const auto = !!groupWidget.style?.autoSize;
   const enable3D = groupWidget.data?.enable3D;
 
@@ -340,6 +342,8 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
         ownerId={ownerId}
         slug={slug}
         playing={playing}
+        badges={badges}
+        index={index}
       />
       {childWidgets.map((w, j) => (
         <WidgetNodeView 
@@ -351,13 +355,14 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
           ownerId={ownerId}
           slug={slug}
           playing={playing}
+          badges={badges}
         />
       ))}
     </motion.div>
   );
 }
 
-function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing }) {
+function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badges }) {
   const Comp = WIDGET_REGISTRY[w.type]?.component;
   if (!Comp) return null;
 
@@ -371,16 +376,9 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing }) {
     bounce: { opacity: 0, y: 24, x: 0, scale: 0.85 },
   };
 
-  const transition = {
-    type: animation === 'bounce' ? 'spring' : 'tween',
-    duration: 0.5,
-    ease: [0.22, 1, 0.36, 1],
-    delay: Math.min(i * 0.05, 0.5),
-    bounce: animation === 'bounce' ? 0.4 : 0,
-  };
-
-  const auto = !!w.style?.autoSize && w.type !== 'group';
-  const layoutStyle = auto
+  const isGroup = w.type === 'group';
+  const auto = !!w.style?.autoSize && !isGroup;
+  const wrapperStyle = auto
     ? {
         left: `${w.pos.x}%`,
         top: `${w.pos.y}%`,
@@ -396,18 +394,22 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing }) {
       };
 
   return (
-    <div 
-      id={`widget-${w.id}`}
-      className="absolute pointer-events-auto" 
-      style={layoutStyle}
+    <div
+      data-widget-type={w.type}
+      style={wrapperStyle}
+      className={`absolute z-20 overflow-visible transition-shadow duration-300 ${isGroup ? 'pointer-events-none' : 'pointer-events-auto'}`}
     >
       <motion.div
-        className={auto ? '' : 'h-full w-full'}
-        initial={variants[animation] || variants['fade-up']}
+        initial={variants[animation]}
         animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
-        transition={transition}
+        transition={{
+          duration: 0.8,
+          delay: 0.15 + i * 0.08,
+          ease: [0.21, 1.02, 0.47, 0.98],
+        }}
+        className="h-full w-full"
       >
-        <WidgetFrame widget={w} mode="view">
+        <WidgetFrame widget={w} mode="view" index={i}>
           <Comp
             widget={w}
             musicPlaying={playing}
@@ -415,6 +417,7 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing }) {
             accentCss={accentCss}
             ownerId={ownerId}
             slug={slug}
+            badges={badges}
           />
         </WidgetFrame>
       </motion.div>

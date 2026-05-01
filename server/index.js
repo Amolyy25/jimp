@@ -442,18 +442,33 @@ app.get('/api/profiles/:slug', async (req, res) => {
 
   const profile = await prisma.profile.findUnique({ 
     where: { slug: normalizedSlug },
-    include: { user: { select: { isBanned: true } } }
+    include: { user: { select: { isBanned: true, role: true } } }
   });
 
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
   
   if (profile.isBanned || profile.user?.isBanned) {
-    // If banned, we don't cache and we block immediately
     profileCache.delete(normalizedSlug); 
     return res.status(403).json({ error: 'Ce profil a été suspendu pour non-respect des conditions d\'utilisation.' });
   }
 
-  const responseData = { ...profile.data, __ownerId: profile.userId };
+  // Determine special badges
+  const badges = [];
+  
+  // Early Badge: first 100 profiles ever created
+  const countBefore = await prisma.profile.count({
+    where: { createdAt: { lt: profile.createdAt } }
+  });
+  if (countBefore < 100) {
+    badges.push({ id: 'early', label: 'Early User' });
+  }
+
+  // Staff Badge: for admins
+  if (profile.user?.role === 'ADMIN') {
+    badges.push({ id: 'staff', label: 'Staff' });
+  }
+
+  const responseData = { ...profile.data, __ownerId: profile.userId, badges };
   profileCache.set(normalizedSlug, { data: responseData, timestamp: now });
 
   // Simple cache cleanup

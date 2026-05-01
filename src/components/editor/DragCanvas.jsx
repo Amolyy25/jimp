@@ -62,9 +62,6 @@ export default function DragCanvas({
 
       if (s.mode === 'move') {
         const auto = !!s.widget.style?.autoSize && s.widget.type !== 'group';
-        // autoSize: pos is the widget's centre; clamp to the full grid so
-        // the user can park the centre anywhere within bounds. Fixed size:
-        // pos is top-left, so the right/bottom edge must stay on-grid.
         const rawX = auto
           ? clamp(s.origin.x + dxPct, 0, 100)
           : clamp(s.origin.x + dxPct, 0, 100 - s.widget.size.w);
@@ -94,24 +91,48 @@ export default function DragCanvas({
       } else if (s.mode === 'resize') {
         const nw = clamp(s.origin.w + dxPct, 6, 100 - s.widget.pos.x);
         const nh = clamp(s.origin.h + dyPct, 5, 100 - s.widget.pos.y);
-        const scaleX = nw / s.origin.w;
-        const scaleY = nh / s.origin.h;
         
         const updates = [{ id: s.widget.id, patch: { size: { w: round2(nw), h: round2(nh) } } }];
         
         if (s.widget.type === 'group' && s.groupOrigins && s.groupOrigins.length > 0) {
+            const groupRight = s.widget.pos.x + nw;
+            const groupBottom = s.widget.pos.y + nh;
+
             s.groupOrigins.forEach(go => {
                 if (go.id === s.widget.id) return;
                 
-                const relX = go.x - s.origin.x;
-                const relY = go.y - s.origin.y;
+                // "Clamping" resize: children stay fixed until group bounds squeeze them.
+                let newW = go.w;
+                let newH = go.h;
+                let newX = go.x;
+                let newY = go.y;
+
+                // Horizontal clamping
+                if (newX + newW > groupRight) {
+                    newW = Math.max(2, groupRight - newX);
+                    // If group shrinks past the child's left edge, push the child left.
+                    if (newX + 2 > groupRight) {
+                        newX = Math.max(s.widget.pos.x, groupRight - 2);
+                        newW = 2;
+                    }
+                }
+
+                // Vertical clamping
+                if (newY + newH > groupBottom) {
+                    newH = Math.max(2, groupBottom - newY);
+                    if (newY + 2 > groupBottom) {
+                        newY = Math.max(s.widget.pos.y, groupBottom - 2);
+                        newH = 2;
+                    }
+                }
                 
-                const newX = s.origin.x + (relX * scaleX);
-                const newY = s.origin.y + (relY * scaleY);
-                const newW = go.w * scaleX;
-                const newH = go.h * scaleY;
-                
-                updates.push({ id: go.id, patch: { pos: { x: round2(newX), y: round2(newY) }, size: { w: round2(newW), h: round2(newH) } } });
+                updates.push({ 
+                    id: go.id, 
+                    patch: { 
+                        pos: { x: round2(newX), y: round2(newY) }, 
+                        size: { w: round2(newW), h: round2(newH) } 
+                    } 
+                });
             });
         }
         
@@ -250,9 +271,8 @@ export default function DragCanvas({
           className="relative aspect-video h-full max-h-full w-auto max-w-full"
         >
           {(() => {
-            const groups = visibleWidgets.filter((w) => w.type === 'group');
-            const groupIds = groups.map(g => g.id);
-            const rootWidgets = visibleWidgets.filter((w) => w.type === 'group' || (!w.groupId) || (!groupIds.includes(w.groupId)));
+            const groupIds = visibleWidgets.filter((w) => w.type === 'group').map(g => g.id);
+            const rootWidgets = visibleWidgets.filter((w) => !w.groupId || !groupIds.includes(w.groupId));
 
             return rootWidgets.map((widget, i) => {
                if (widget.type === 'group') {
@@ -268,6 +288,7 @@ export default function DragCanvas({
                       accent={accent}
                       accentCss={accentCss}
                       index={i}
+                      visibleWidgets={visibleWidgets}
                     />
                   );
                }
@@ -300,7 +321,7 @@ export default function DragCanvas({
   );
 }
 
-function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startDrag, accent, accentCss, index }) {
+function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startDrag, accent, accentCss, index, visibleWidgets }) {
   const auto = !!groupWidget.style?.autoSize;
   const enable3D = groupWidget.data?.enable3D;
 
@@ -365,17 +386,36 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
         accentCss={accentCss}
         index={index}
       />
-      {childWidgets.map((w, j) => (
-        <WidgetNode 
-          key={w.id} 
-          widget={w} 
-          isSelected={selectedIds?.includes(w.id)} 
-          startDrag={startDrag} 
-          accent={accent} 
-          accentCss={accentCss} 
-          index={index + 1 + j}
-        />
-      ))}
+      {childWidgets.map((w, j) => {
+        if (w.type === 'group') {
+          const subChildren = visibleWidgets.filter(sw => sw.groupId === w.id);
+          return (
+            <GroupLayer 
+              key={w.id}
+              groupWidget={w}
+              childWidgets={subChildren}
+              isSelected={selectedIds?.includes(w.id)}
+              selectedIds={selectedIds}
+              startDrag={startDrag}
+              accent={accent}
+              accentCss={accentCss}
+              index={index + 1 + j}
+              visibleWidgets={visibleWidgets}
+            />
+          );
+        }
+        return (
+          <WidgetNode 
+            key={w.id} 
+            widget={w} 
+            isSelected={selectedIds?.includes(w.id)} 
+            startDrag={startDrag} 
+            accent={accent} 
+            accentCss={accentCss} 
+            index={index + 1 + j}
+          />
+        );
+      })}
     </motion.div>
   );
 }
