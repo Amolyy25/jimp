@@ -3,12 +3,12 @@ import { useScrambleText } from '../../hooks/useScrambleText.js';
 import { ShieldCheck, Sparkles } from 'lucide-react';
 import nitroIcon from '../../image/Nitro_badge.webp';
 import earlyIcon from '../../image/Early_badge.png';
-import staffIcon from '../../image/staff_badge.png';
+import staffIcon from '../../image/Staff_badge.png';
 
 /**
  * Avatar + identity block.
  * Floating avatar with the pseudo in large weight-600 type and a small,
- * letter-spaced bio underneath. Optional Nitro badge sits next to the name.
+ * letter-spaced bio &Optional Nitro badge sit next to the name.
  * A pulsing ring surrounds the avatar while music plays.
  */
 export default function AvatarWidget({ widget, musicPlaying, accent, accentCss, badges }) {
@@ -78,7 +78,7 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss, 
       // clipped into a square by overflow-hidden.
       styles.textShadow = `
         0 0 3px #fff,
-        0 0 7px #fff,
+        0 0 7px #fff, 
         0 0 14px ${hexToRgba(ringColor, 0.85)},
         0 0 24px ${hexToRgba(ringColor, 0.5)}
       `;
