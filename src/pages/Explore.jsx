@@ -286,7 +286,7 @@ function ProfileCard({ profile, index }) {
           {profile.clickerScore > 0 ? (
             <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/20">
               <MousePointer2 className="h-3 w-3" />
-              <span className="tabular-nums">{profile.clickerScore.toLocaleString()} clics</span>
+              <span className="tabular-nums">{profile.clickerScore.toLocaleString()} clics (game)</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/10">
