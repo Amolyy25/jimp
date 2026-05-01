@@ -3,6 +3,7 @@ import { useScrambleText } from '../../hooks/useScrambleText.js';
 import { ShieldCheck, Sparkles } from 'lucide-react';
 import nitroIcon from '../../image/Nitro_badge.webp';
 import earlyIcon from '../../image/Early_badge.png';
+import staffIcon from '../../image/staff_badge.png';
 
 /**
  * Avatar + identity block.
@@ -214,7 +215,7 @@ function NitroBadge({ accent }) {
 
 function SpecialBadge({ type, label }) {
   const isImage = type === 'early';
-  const Icon = type === 'staff' ? ShieldCheck : null;
+  const Icon = type === 'staff' ? staffIcon : null;
 
   return (
     <div className="group relative flex h-5 w-5 flex-shrink-0 items-center justify-center transition-all duration-300 hover:scale-110">
@@ -225,9 +226,10 @@ function SpecialBadge({ type, label }) {
           className="h-full w-full object-contain drop-shadow-[0_0_8px_rgba(255,215,0,0.4)]"
         />
       ) : Icon ? (
-        <Icon 
-          className="h-4 w-4 drop-shadow-[0_0_8px_rgba(88,101,242,0.4)]" 
-          style={{ color: '#5865F2' }} 
+        <img 
+          src={staffIcon}
+          alt={label}
+          className="h-full w-full object-contain drop-shadow-[0_0_8px_rgba(88,101,242,0.4)]"
         />
       ) : null}
 
