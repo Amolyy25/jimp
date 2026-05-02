@@ -117,238 +117,219 @@ export async function renderProfileOg(slug, profileData) {
   ctx.fillStyle = pageBg;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  // Diagonal accent gradient wash — very low alpha so it stays atmospheric.
+  // Atmospheric accent wash — low alpha for premium depth
   const wash = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
-  wash.addColorStop(0, hexToRgba(accentGrad.from, 0.18));
+  wash.addColorStop(0, hexToRgba(accentGrad.from, 0.15));
   wash.addColorStop(1, hexToRgba(accentGrad.to, 0.05));
   ctx.fillStyle = wash;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  // Spotlight glow under the username area.
-  const glow = ctx.createRadialGradient(360, 380, 0, 360, 380, 720);
-  glow.addColorStop(0, hexToRgba(accent, 0.35));
-  glow.addColorStop(1, hexToRgba(accent, 0));
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-  // Subtle grid (kept very faint).
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
   ctx.lineWidth = 1;
   for (let x = 0; x < WIDTH; x += 48) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, HEIGHT);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, HEIGHT); ctx.stroke();
   }
   for (let y = 0; y < HEIGHT; y += 48) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(WIDTH, y);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WIDTH, y); ctx.stroke();
   }
 
-  /* ─────────────── Top accent stripe ─────────────── */
-  // Thin gradient bar across the top — gives the card a defined edge in
-  // Discord's tight preview crop.
+  /* ─────────────── Layout Mapping ─────────────── */
+  // The editor uses a 16:9 inner box. On 1200x630 (40:21), this box
+  // will be limited by height and centered horizontally.
+  const contentH = HEIGHT;
+  const contentW = HEIGHT * (16 / 9); // 1120px
+  const offsetX = (WIDTH - contentW) / 2; // 40px margin
+
+  const toAbsX = (pct) => offsetX + (pct / 100) * contentW;
+  const toAbsY = (pct) => (pct / 100) * contentH;
+  const toAbsW = (pct) => (pct / 100) * contentW;
+  const toAbsH = (pct) => (pct / 100) * contentH;
+
+  /* ─────────────── Widgets ─────────────── */
+  const widgets = profileData.widgets || [];
+  
+  for (const widget of widgets) {
+    if (widget.visible === false) continue;
+
+    const isAuto = !!widget.style?.autoSize && widget.type !== 'group';
+    let x = toAbsX(widget.pos.x);
+    let y = toAbsY(widget.pos.y);
+    let w = toAbsW(widget.size.w);
+    let h = toAbsH(widget.size.h);
+
+    if (isAuto) {
+      // Auto-size widgets in the editor use center-point positioning
+      x = x - w / 2;
+      y = y - h / 2;
+    }
+
+    const radius = widget.style?.borderRadius ?? 16;
+
+    // 1. Draw Glassmorphism Frame
+    ctx.save();
+    ctx.beginPath();
+    roundRect(ctx, x, y, w, h, radius);
+    
+    // Fill with slight translucency
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.fill();
+    
+    // Border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // Clipping for internal content
+    ctx.clip();
+
+    // 2. Widget-specific content
+    if (widget.type === 'avatar') {
+      await drawAvatarContent(ctx, x, y, w, h, widget.data, accent);
+    } else if (widget.type === 'now-playing' || widget.type === 'music-progress') {
+      drawSpotifyIcon(ctx, x, y, w, h, accent);
+    } else {
+      drawWidgetPlaceholder(ctx, x, y, w, h, widget.type);
+    }
+    
+    ctx.restore();
+  }
+
+  /* ─────────────── Branding Overlay ─────────────── */
+  // Top accent stripe
   const strip = ctx.createLinearGradient(0, 0, WIDTH, 0);
   strip.addColorStop(0, accentGrad.from);
   strip.addColorStop(1, accentGrad.to);
   ctx.fillStyle = strip;
-  ctx.fillRect(0, 0, WIDTH, 6);
+  ctx.fillRect(0, 0, WIDTH, 4);
 
-  /* ─────────────── Wordmark (top-left) ─────────────── */
-  // Logo square uses the gradient when the user picked one.
-  if (accentGrad.kind === 'gradient') {
-    const g = ctx.createLinearGradient(56, 56, 116, 116);
-    g.addColorStop(0, accentGrad.from);
-    g.addColorStop(1, accentGrad.to);
-    ctx.fillStyle = g;
-  } else {
-    ctx.fillStyle = accent;
-  }
-  roundRect(ctx, 56, 56, 60, 60, 14);
-  ctx.fill();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'center';
-  ctx.font = `900 42px ${DISPLAY_FONT}, sans-serif`;
-  ctx.fillText('P', 86, 88);
-
+  // Logo wordmark (bottom-left)
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = `900 20px ${DISPLAY_FONT}, sans-serif`;
   ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
-  ctx.font = `900 36px ${DISPLAY_FONT}, sans-serif`;
-  ctx.fillText('PERSN.ME', 134, 80);
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = `500 18px ${BODY_FONT}, sans-serif`;
-  ctx.fillText('Your freeform profile', 134, 108);
-
-  /* ─────────────── Profile identity ─────────────── */
-  const avatarWidget = profileData.widgets?.find((w) => w.type === 'avatar');
-  const username = avatarWidget?.data?.username || slug || 'profile';
-  const bio = avatarWidget?.data?.bio || '';
-  const avatarUrl = avatarWidget?.data?.avatarUrl;
-  const hasNitro = !!avatarWidget?.data?.hasNitro;
-
-  // Avatar — anchored on the right with a coloured halo.
-  const avatarCx = WIDTH - 230;
-  const avatarCy = HEIGHT / 2 + 30;
-  const avatarR = 170;
-
-  // Outer halo
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(avatarCx, avatarCy, avatarR + 24, 0, Math.PI * 2);
-  ctx.fillStyle = hexToRgba(accent, 0.18);
-  ctx.fill();
-  ctx.restore();
-
-  if (avatarUrl && /^https?:/.test(avatarUrl)) {
-    try {
-      const img = await loadImage(avatarUrl);
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(
-        img,
-        avatarCx - avatarR,
-        avatarCy - avatarR,
-        avatarR * 2,
-        avatarR * 2,
-      );
-      ctx.restore();
-    } catch {
-      drawAvatarFallback(ctx, avatarCx, avatarCy, avatarR, username, accent);
-    }
-  } else {
-    drawAvatarFallback(ctx, avatarCx, avatarCy, avatarR, username, accent);
-  }
-
-  // Accent ring around the avatar.
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = hexToRgba(accent, 0.6);
-  ctx.beginPath();
-  ctx.arc(avatarCx, avatarCy, avatarR + 8, 0, Math.PI * 2);
-  ctx.stroke();
-
-  /* ─────────────── @username — the hero element ─────────────── */
-  ctx.fillStyle = '#ffffff';
   ctx.textBaseline = 'alphabetic';
-  ctx.textAlign = 'left';
-
-  // Auto-shrink the display name so very long handles still fit on one line.
-  const displayName = `@${clamp(username, 22)}`;
-  const nameMaxWidth = WIDTH - 180 - (avatarR * 2 + 80);
-  const nameFontSize = fitFontSize(ctx, displayName, nameMaxWidth, 110, 64, DISPLAY_FONT, '900');
-  ctx.font = `900 ${nameFontSize}px ${DISPLAY_FONT}, sans-serif`;
-  ctx.fillText(displayName, 64, 320);
-
-  // Underline accent — same gradient as the top strip.
-  const nameWidth = ctx.measureText(displayName).width;
-  const underline = ctx.createLinearGradient(64, 0, 64 + Math.min(nameWidth, 360), 0);
-  underline.addColorStop(0, accentGrad.from);
-  underline.addColorStop(1, accentGrad.to);
-  ctx.fillStyle = underline;
-  ctx.fillRect(64, 340, Math.min(nameWidth, 360), 6);
-
-  // Nitro pill, sitting next to the username.
-  if (hasNitro) {
-    drawPill(ctx, 64 + Math.min(nameWidth, 720) + 18, 270, 'NITRO', accent, DISPLAY_FONT);
-  }
-
-  /* ─────────────── Bio (wrapped, max 2 lines) ─────────────── */
-  if (bio) {
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = `500 28px ${BODY_FONT}, sans-serif`;
-    wrapText(ctx, clamp(bio, 160), 64, 392, nameMaxWidth, 40, 2);
-  }
-
-  /* ─────────────── URL pill (bottom-left) ─────────────── */
-  ctx.font = `700 24px ${DISPLAY_FONT}, sans-serif`;
-  const urlText = `persn.me/${slug || 'your-link'}`;
-  const urlW = ctx.measureText(urlText).width + 56;
-  const urlY = HEIGHT - 86;
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
-  roundRect(ctx, 56, urlY, urlW, 50, 25);
-  ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = hexToRgba(accent, 0.4);
-  roundRect(ctx, 56, urlY, urlW, 50, 25);
-  ctx.stroke();
-
-  // Accent dot
-  ctx.fillStyle = accent;
-  ctx.beginPath();
-  ctx.arc(80, urlY + 25, 6, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(urlText, 100, urlY + 25);
-
-  /* ─────────────── "Tap to visit" hint (bottom-right) ─────────────── */
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = `500 18px ${BODY_FONT}, sans-serif`;
-  ctx.textAlign = 'right';
-  ctx.fillText('TAP TO VISIT  >', WIDTH - 56, urlY + 25);
-  ctx.textAlign = 'left';
+  ctx.fillText('PERSN.ME', 60, HEIGHT - 40);
 
   const png = await canvas.encode('png');
   imageCache.set(slug, { png, expiresAt: Date.now() + CACHE_TTL_MS });
   return png;
 }
 
+
 /* -------------------------------------------------------------------------- */
-/* Helpers                                                                     */
+/* Sub-renderers                                                               */
 /* -------------------------------------------------------------------------- */
 
-function drawAvatarFallback(ctx, cx, cy, r, name, accent) {
-  const initial = (name || '?').charAt(0).toUpperCase();
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  const g = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
-  g.addColorStop(0, accent);
-  g.addColorStop(1, '#1a1a1a');
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.font = `900 ${Math.round(r * 1.1)}px ${DISPLAY_FONT}, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(initial, cx, cy);
-  ctx.restore();
+async function drawAvatarContent(ctx, x, y, w, h, data, accent) {
+  const { avatarUrl, username, bio, avatarShape = 'circle' } = data || {};
+  const padding = 24;
+  
+  // Avatar sizing: attempt to be responsive to the block size
+  const avSize = Math.min(w * 0.35, h * 0.7);
+  const avX = x + padding;
+  const avY = y + (h - avSize) / 2;
+
+  if (avatarUrl) {
+    try {
+      const img = await loadImage(avatarUrl);
+      ctx.save();
+      ctx.beginPath();
+      if (avatarShape === 'circle') {
+        ctx.arc(avX + avSize / 2, avY + avSize / 2, avSize / 2, 0, Math.PI * 2);
+      } else {
+        roundRect(ctx, avX, avY, avSize, avSize, 12);
+      }
+      ctx.clip();
+      ctx.drawImage(img, avX, avY, avSize, avSize);
+      ctx.restore();
+    } catch {
+      drawAvatarFallbackMini(ctx, avX, avY, avSize, username, accent, avatarShape);
+    }
+  } else {
+    drawAvatarFallbackMini(ctx, avX, avY, avSize, username, accent, avatarShape);
+  }
+
+  // Identity text
+  const textX = avX + avSize + 20;
+  const textW = w - (avSize + 20) - padding * 2;
+  
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  // Username
+  ctx.fillStyle = '#ffffff';
+  const nameFontSize = fitFontSize(ctx, username || 'user', textW, 32, 18, DISPLAY_FONT, '900');
+  ctx.font = `900 ${nameFontSize}px ${DISPLAY_FONT}, sans-serif`;
+  ctx.fillText(username || 'user', textX, avY + 4);
+
+  // Bio (multi-line)
+  if (bio) {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = `500 16px ${BODY_FONT}, sans-serif`;
+    wrapText(ctx, bio, textX, avY + 4 + nameFontSize + 10, textW, 22, 2);
+  }
 }
 
-function drawPill(ctx, x, y, text, accent, font) {
-  const padX = 18;
-  const h = 40;
-  ctx.font = `900 20px ${font}, sans-serif`;
-  const w = ctx.measureText(text).width + padX * 2;
-  const r = h / 2;
+function drawAvatarFallbackMini(ctx, x, y, size, name, accent, shape) {
   ctx.save();
-  const g = ctx.createLinearGradient(x, y, x + w, y + h);
-  g.addColorStop(0, '#ff73fa');
-  g.addColorStop(0.5, accent);
-  g.addColorStop(1, '#3ba9ff');
-  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+  if (shape === 'circle') {
+    ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  } else {
+    roundRect(ctx, x, y, size, size, 12);
+  }
+  ctx.fillStyle = accent;
   ctx.fill();
   ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'left';
+  ctx.font = `bold ${Math.round(size * 0.5)}px ${DISPLAY_FONT}, sans-serif`;
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, x + padX, y + h / 2);
+  ctx.fillText((name || '?').charAt(0).toUpperCase(), x + size / 2, y + size / 2);
   ctx.restore();
 }
 
+function drawSpotifyIcon(ctx, x, y, w, h, accent) {
+  const size = Math.min(w, h) * 0.35;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  
+  ctx.save();
+  ctx.fillStyle = '#1DB954';
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = size * 0.07;
+  ctx.lineCap = 'round';
+  
+  for (let i = 0; i < 3; i++) {
+    const r = (size / 2) * (0.8 - i * 0.2);
+    ctx.beginPath();
+    ctx.arc(cx, cy + size * 0.2, r, -Math.PI * 0.75, -Math.PI * 0.25);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawWidgetPlaceholder(ctx, x, y, w, h, type) {
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.font = `700 10px ${DISPLAY_FONT}, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Avoid rendering very small text if widget is tiny
+  if (w > 40 && h > 20) {
+    ctx.fillText(type.toUpperCase(), x + w / 2, y + h / 2);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* General Helpers                                                             */
+/* -------------------------------------------------------------------------- */
+
 function roundRect(ctx, x, y, w, h, r) {
+  if (w < 2 * r) r = w / 2;
+  if (h < 2 * r) r = h / 2;
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -358,22 +339,18 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/**
- * Pick the largest font size in [minPx, maxPx] that lets `text` fit within
- * `maxWidth`. Avoids the "username gets cropped" problem on long handles.
- */
 function fitFontSize(ctx, text, maxWidth, maxPx, minPx, font, weight = '700') {
   let size = maxPx;
   while (size > minPx) {
     ctx.font = `${weight} ${size}px ${font}, sans-serif`;
     if (ctx.measureText(text).width <= maxWidth) return size;
-    size -= 4;
+    size -= 2;
   }
   return minPx;
 }
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
-  const words = text.split(' ');
+  const words = (text || '').split(' ');
   let line = '';
   let cy = y;
   let lines = 0;
@@ -382,9 +359,7 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
     if (ctx.measureText(test).width > maxWidth && line) {
       ctx.fillText(line, x, cy);
       lines += 1;
-      if (lines >= maxLines) {
-        return; // hard cut — bio shouldn't take over the card
-      }
+      if (lines >= maxLines) return;
       line = word;
       cy += lineHeight;
     } else {
@@ -392,11 +367,6 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
     }
   }
   if (line && lines < maxLines) ctx.fillText(line, x, cy);
-}
-
-function clamp(str, n) {
-  if (!str) return '';
-  return str.length <= n ? str : str.slice(0, n - 1) + '…';
 }
 
 function hexToRgba(hex, alpha) {
@@ -410,3 +380,4 @@ function hexToRgba(hex, alpha) {
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
+
