@@ -42,7 +42,7 @@ export default function Clicker() {
       <Backdrop />
 
       <header className="relative z-10 border-b border-white/[0.06] bg-black/40 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
           <Link
             to="/"
             className="font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/55 transition hover:text-white"
@@ -59,19 +59,19 @@ export default function Clicker() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-[1200px] px-6 py-14 md:py-20">
+      <main className="relative z-10 mx-auto max-w-[1200px] px-4 py-12 sm:px-6 sm:py-14 md:py-20">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-12 text-center"
+          className="mb-10 text-center sm:mb-12"
         >
           <div className="mb-4 inline-flex items-center gap-1.5 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
             <Trophy className="h-3 w-3 text-[#ffd24d]" />
             Clicker leaderboard
           </div>
           <h1
-            className="text-[14vw] font-black leading-[0.86] tracking-[-0.02em] md:text-[7rem]"
+            className="text-[16vw] font-black leading-[0.86] tracking-[-0.02em] sm:text-[14vw] md:text-[7rem]"
             style={{ fontFamily: 'Bebas Neue' }}
           >
             <span className="bg-gradient-to-br from-[#ffd24d] via-white to-[#cd7f32] bg-clip-text text-transparent">
@@ -109,18 +109,27 @@ export default function Clicker() {
         )}
 
         {podium.length > 0 && (
-          <div className="mb-12 grid grid-cols-1 gap-4 md:grid-cols-3 md:items-end">
-            {[1, 0, 2].map((idx) => {
-              const p = podium[idx];
-              if (!p) return <div key={idx} />;
-              return <PodiumCard key={p.slug} entry={p} place={idx + 1} />;
-            })}
-          </div>
+          <>
+            {/* Mobile: natural ranking order (Gold first) */}
+            <div className="mb-10 grid grid-cols-1 gap-4 md:hidden">
+              {podium.map((p, i) => (
+                <PodiumCard key={p.slug} entry={p} place={i + 1} />
+              ))}
+            </div>
+            {/* Desktop: theatrical [Silver, Gold, Bronze] with the gold raised */}
+            <div className="mb-12 hidden gap-4 md:grid md:grid-cols-3 md:items-end">
+              {[1, 0, 2].map((idx) => {
+                const p = podium[idx];
+                if (!p) return <div key={idx} />;
+                return <PodiumCard key={p.slug} entry={p} place={idx + 1} />;
+              })}
+            </div>
+          </>
         )}
 
         {rest.length > 0 && (
           <div className="overflow-hidden rounded-2xl border border-white/[0.06]">
-            <div className="grid grid-cols-[60px_1fr_120px] gap-4 border-b border-white/[0.06] bg-white/[0.025] px-5 py-3 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/40">
+            <div className="grid grid-cols-[40px_1fr_90px] gap-3 border-b border-white/[0.06] bg-white/[0.025] px-3 py-3 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/40 sm:grid-cols-[60px_1fr_120px] sm:gap-4 sm:px-5">
               <span>#</span>
               <span>Player</span>
               <span className="text-right">Clicks</span>
@@ -170,7 +179,15 @@ function PodiumCard({ entry, place }) {
   const ref = useRef(null);
   const rx = useMotionValue(0);
   const ry = useMotionValue(0);
+  const [tiltEnabled, setTiltEnabled] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setTiltEnabled(window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+  }, []);
+
   const onMove = (e) => {
+    if (!tiltEnabled) return;
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     const x = (e.clientX - r.left) / r.width - 0.5;
@@ -179,6 +196,7 @@ function PodiumCard({ entry, place }) {
     ry.set(x * 7);
   };
   const onLeave = () => {
+    if (!tiltEnabled) return;
     rx.set(0);
     ry.set(0);
   };
@@ -200,7 +218,7 @@ function PodiumCard({ entry, place }) {
       <Link
         to={`/${entry.slug}`}
         style={{ scale: style.scale }}
-        className="group relative flex flex-col items-center overflow-hidden rounded-2xl border bg-white/[0.025] p-7 text-center backdrop-blur"
+        className="group relative flex flex-col items-center overflow-hidden rounded-2xl border bg-white/[0.025] p-5 text-center backdrop-blur sm:p-7"
       >
         <span
           className="pointer-events-none absolute inset-0 opacity-30"
@@ -265,13 +283,13 @@ function Row({ entry, index }) {
     <li>
       <Link
         to={`/${entry.slug}`}
-        className="group grid grid-cols-[60px_1fr_120px] items-center gap-4 border-b border-white/[0.04] px-5 py-3 transition last:border-b-0 hover:bg-white/[0.025]"
+        className="group grid grid-cols-[40px_1fr_90px] items-center gap-3 border-b border-white/[0.04] px-3 py-3 transition last:border-b-0 hover:bg-white/[0.025] sm:grid-cols-[60px_1fr_120px] sm:gap-4 sm:px-5"
       >
         <span className="font-mono-tight text-xs tabular-nums text-white/40">
           #{entry.rank}
         </span>
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar url={entry.avatarUrl} name={entry.username} size={36} />
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+          <Avatar url={entry.avatarUrl} name={entry.username} size={32} />
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold transition-colors group-hover:text-white">
               @{entry.username}
@@ -282,7 +300,7 @@ function Row({ entry, index }) {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-base font-bold tabular-nums">
+          <div className="text-sm font-bold tabular-nums sm:text-base">
             {entry.score.toLocaleString()}
           </div>
           <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/35">

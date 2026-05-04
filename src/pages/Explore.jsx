@@ -80,7 +80,7 @@ export default function Explore() {
       <Backdrop />
 
       <header className="relative z-10 border-b border-white/[0.06] bg-black/40 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
           <Link
             to="/"
             className="font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/55 transition hover:text-white"
@@ -97,12 +97,13 @@ export default function Explore() {
             className="flex items-center gap-1.5 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/65 transition hover:text-white"
           >
             <Trophy className="h-3.5 w-3.5" />
-            Leaderboard
+            <span className="hidden xs:inline sm:inline">Leaderboard</span>
+            <span className="sm:hidden">Top</span>
           </Link>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-[1400px] px-6 py-14 md:py-20">
+      <main className="relative z-10 mx-auto max-w-[1400px] px-4 py-12 sm:px-6 sm:py-14 md:py-20">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -114,7 +115,7 @@ export default function Explore() {
             <span>The wall / community</span>
           </div>
           <h1
-            className="text-[12vw] font-black leading-[0.86] tracking-[-0.02em] md:text-[6.5rem]"
+            className="text-[14vw] font-black leading-[0.86] tracking-[-0.02em] sm:text-[12vw] md:text-[6.5rem]"
             style={{ fontFamily: 'Bebas Neue' }}
           >
             EXPLORE THE
@@ -127,7 +128,7 @@ export default function Explore() {
             </span>
           </h1>
           <p
-            className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/55"
+            className="mt-4 max-w-xl text-[14px] leading-relaxed text-white/55 sm:text-[15px]"
             style={{ fontFamily: 'Outfit, Inter, sans-serif' }}
           >
             {total.toLocaleString()} profile{total === 1 ? '' : 's'} building their
@@ -139,9 +140,9 @@ export default function Explore() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.5 }}
-          className="mb-12 flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+          className="mb-10 flex flex-col gap-4 sm:mb-12 md:flex-row md:items-center md:justify-between"
         >
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 md:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
             <input
               type="text"
@@ -151,7 +152,7 @@ export default function Explore() {
               className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] py-2.5 pl-10 pr-4 font-mono-tight text-[12px] text-white placeholder:text-white/25 transition focus:border-[#5865F2]/40 focus:bg-white/[0.04] focus:outline-none"
             />
           </div>
-          <div className="flex items-center rounded-full border border-white/[0.08] bg-black/40 p-1 backdrop-blur-md">
+          <div className="flex w-full items-center justify-center rounded-full border border-white/[0.08] bg-black/40 p-1 backdrop-blur-md md:w-auto">
             <SortPill
               active={sort === 'recent'}
               onClick={() => setSort('recent')}
@@ -301,7 +302,17 @@ function ProfileCard({ profile, index }) {
   const ref = useRef(null);
   const rx = useMotionValue(0);
   const ry = useMotionValue(0);
+  const [tiltEnabled, setTiltEnabled] = useState(false);
+
+  // Skip mouse-tracking 3D tilt on touch devices — it never fires anyway and
+  // adds a transformStyle that interferes with native touch scrolling.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setTiltEnabled(window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+  }, []);
+
   const onMove = (e) => {
+    if (!tiltEnabled) return;
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     const x = (e.clientX - r.left) / r.width - 0.5;
@@ -310,6 +321,7 @@ function ProfileCard({ profile, index }) {
     ry.set(x * 7);
   };
   const onLeave = () => {
+    if (!tiltEnabled) return;
     rx.set(0);
     ry.set(0);
   };
@@ -336,7 +348,7 @@ function ProfileCard({ profile, index }) {
     >
       <Link
         to={`/${profile.slug}`}
-        className="group relative flex h-full flex-col gap-5 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all duration-500 hover:border-white/15 hover:bg-white/[0.035] hover:shadow-[0_25px_70px_rgba(0,0,0,0.45)]"
+        className="group relative flex h-full flex-col gap-4 overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 transition-all duration-500 hover:border-white/15 hover:bg-white/[0.035] hover:shadow-[0_25px_70px_rgba(0,0,0,0.45)] sm:gap-5 sm:p-6"
       >
         <span
           className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-700 group-hover:opacity-50"

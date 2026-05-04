@@ -31,6 +31,7 @@ import {
   Pause,
   ChevronRight,
   X,
+  Menu,
   Disc,
   Award,
   Share2,
@@ -174,11 +175,17 @@ function ScrollProgress() {
 
 function Cursor() {
   const [pos, setPos] = useState({ x: -100, y: -100 });
+  const [enabled, setEnabled] = useState(false);
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const fineCursor = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (!fineCursor) return;
+    setEnabled(true);
     const onMove = (e) => setPos({ x: e.clientX, y: e.clientY });
     window.addEventListener('mousemove', onMove);
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
+  if (!enabled) return null;
   return (
     <div
       aria-hidden
@@ -238,6 +245,7 @@ function Grain() {
 
 function Nav({ user, authChecked, onSignOut }) {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
     onScroll();
@@ -245,16 +253,24 @@ function Nav({ user, authChecked, onSignOut }) {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [mobileOpen]);
+
   return (
     <nav
       className={[
         'fixed left-0 right-0 top-0 z-50 transition-all duration-500',
-        scrolled
+        scrolled || mobileOpen
           ? 'border-b border-white/[0.06] bg-black/70 backdrop-blur-2xl'
           : 'border-b border-transparent bg-transparent',
       ].join(' ')}
     >
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-3.5">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5">
         <Wordmark />
         <div className="hidden items-center gap-9 md:flex">
           <NavLink href="#features">Features</NavLink>
@@ -266,7 +282,7 @@ function Nav({ user, authChecked, onSignOut }) {
         </div>
         <div className="flex items-center gap-2">
           {!authChecked ? (
-            <div className="h-9 w-32 animate-pulse rounded-md bg-white/[0.04]" />
+            <div className="h-9 w-24 animate-pulse rounded-md bg-white/[0.04] sm:w-32" />
           ) : user ? (
             <UserMenu user={user} onSignOut={onSignOut} />
           ) : (
@@ -279,7 +295,7 @@ function Nav({ user, authChecked, onSignOut }) {
               </Link>
               <Link
                 to="/register"
-                className="group relative flex h-9 items-center gap-1.5 overflow-hidden rounded-md bg-white px-3.5 font-mono-tight text-[10px] font-bold uppercase tracking-[0.22em] text-black transition"
+                className="group relative flex h-9 items-center gap-1.5 overflow-hidden rounded-md bg-white px-3 font-mono-tight text-[10px] font-bold uppercase tracking-[0.22em] text-black transition sm:px-3.5"
               >
                 <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-[var(--lime)] via-[var(--discord)] to-[var(--magenta)] transition-transform duration-500 group-hover:translate-x-0" />
                 <span className="relative">Get Started</span>
@@ -287,8 +303,76 @@ function Nav({ user, authChecked, onSignOut }) {
               </Link>
             </>
           )}
+
+          {/* Mobile menu trigger */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen((o) => !o)}
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            className="ml-1 flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03] text-white/70 transition hover:border-white/25 hover:bg-white/[0.06] hover:text-white md:hidden"
+          >
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="md:hidden"
+          >
+            <div className="border-t border-white/[0.06] bg-black/95 px-4 py-5 backdrop-blur-2xl">
+              <ul className="flex flex-col gap-1">
+                {[
+                  ['#features', 'Features'],
+                  ['#how', 'How it works'],
+                  ['#compare', 'vs. The rest'],
+                  ['/explore', 'Explore', true],
+                ].map(([href, label, ext]) => (
+                  <li key={href}>
+                    {ext ? (
+                      <Link
+                        to={href}
+                        onClick={() => setMobileOpen(false)}
+                        className="flex items-center justify-between rounded-md px-3 py-3 font-mono-tight text-[11px] font-medium uppercase tracking-[0.22em] text-white/70 transition hover:bg-white/[0.05] hover:text-white"
+                      >
+                        {label}
+                        <ArrowUpRight className="h-3.5 w-3.5 text-white/40" />
+                      </Link>
+                    ) : (
+                      <a
+                        href={href}
+                        onClick={() => setMobileOpen(false)}
+                        className="flex items-center justify-between rounded-md px-3 py-3 font-mono-tight text-[11px] font-medium uppercase tracking-[0.22em] text-white/70 transition hover:bg-white/[0.05] hover:text-white"
+                      >
+                        {label}
+                        <ChevronRight className="h-3.5 w-3.5 text-white/40" />
+                      </a>
+                    )}
+                  </li>
+                ))}
+                {!user && authChecked && (
+                  <li>
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileOpen(false)}
+                      className="mt-2 flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] px-3 py-3 font-mono-tight text-[11px] font-medium uppercase tracking-[0.22em] text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      Sign in
+                      <ArrowUpRight className="h-3.5 w-3.5 text-white/40" />
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }
@@ -469,8 +553,8 @@ function Hero({ user }) {
   const yLabel = useTransform(scrollYProgress, [0, 1], [0, -40]);
 
   return (
-    <section ref={ref} className="relative pb-20 pt-32 lg:pt-44 lg:pb-28">
-      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-14 px-6 lg:grid-cols-12 lg:gap-10">
+    <section ref={ref} className="relative pb-16 pt-24 sm:pb-20 sm:pt-32 lg:pt-44 lg:pb-28">
+      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-12 lg:gap-10">
         <div className="relative lg:col-span-7">
           <motion.div
             initial="hidden"
@@ -501,7 +585,7 @@ function Hero({ user }) {
 
             <motion.h1
               variants={fadeUp}
-              className="font-display text-[14vw] font-black leading-[0.84] tracking-[-0.02em] sm:text-[10rem] lg:text-[10.5rem]"
+              className="font-display text-[18vw] font-black leading-[0.84] tracking-[-0.02em] sm:text-[10rem] lg:text-[10.5rem]"
             >
               <span className="block">A PROFILE</span>
               <span className="block">
@@ -532,7 +616,7 @@ function Hero({ user }) {
 
             <motion.p
               variants={fadeUp}
-              className="font-body max-w-lg text-[17px] font-light leading-relaxed text-white/60"
+              className="font-body max-w-lg text-[15px] font-light leading-relaxed text-white/60 sm:text-[17px]"
             >
               Drag widgets on a freeform canvas. Pin your music, your games, your
               Discord. Claim <span className="text-white/90">persn.me/yourname</span> —
@@ -626,8 +710,12 @@ const fadeUp = {
 
 function HeroMockup() {
   const ref = useRef(null);
+  const wrapRef = useRef(null);
   const rx = useMotionValue(0);
   const ry = useMotionValue(0);
+  const [scale, setScale] = useState(1);
+  const DESIGN_W = 480;
+
   const onMouseMove = (e) => {
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
@@ -641,19 +729,49 @@ function HeroMockup() {
     ry.set(0);
   };
 
+  // Scale the fixed-width 480px design down on narrower viewports so the
+  // absolute-positioned widgets inside never overflow or pile up.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const compute = () => {
+      const w = wrapRef.current?.clientWidth ?? DESIGN_W;
+      setScale(Math.min(1, w / DESIGN_W));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const designH = DESIGN_W * 6 / 5;
+
   return (
-    <div className="relative mx-auto w-full max-w-[540px] [perspective:1400px] lg:max-w-none">
-      <motion.div
-        ref={ref}
-        onMouseMove={onMouseMove}
-        onMouseLeave={onLeave}
-        initial={{ opacity: 0, y: 28 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        style={{ rotateX: rx, rotateY: ry, transformStyle: 'preserve-3d' }}
-        className="relative aspect-[5/6] w-full"
-      >
-        {/* Tag bar */}
+    <div ref={wrapRef} className="relative mx-auto w-full max-w-[540px] [perspective:1400px] lg:max-w-none">
+      {/* Layout reserver — its height tracks the scaled inner so the page
+          flow doesn't carry the un-scaled 480x576 footprint on small screens. */}
+      <div style={{ height: designH * scale }} className="relative w-full">
+        <div
+          style={{
+            width: DESIGN_W,
+            height: designH,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+            position: 'absolute',
+            left: '50%',
+            marginLeft: -(DESIGN_W * scale) / 2,
+          }}
+        >
+          <motion.div
+            ref={ref}
+            onMouseMove={onMouseMove}
+            onMouseLeave={onLeave}
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            style={{ rotateX: rx, rotateY: ry, transformStyle: 'preserve-3d' }}
+            className="relative h-full w-full"
+          >
+            {/* Tag bar */}
         <div className="absolute -left-2 -top-7 z-20 flex items-center gap-2 font-mono-tight text-[9px] uppercase tracking-[0.24em] text-white/40">
           <span className="h-px w-6 bg-white/30" />
           live preview / persn.me
@@ -854,7 +972,9 @@ function HeroMockup() {
 
         {/* Glow */}
         <div className="pointer-events-none absolute -inset-10 -z-10 bg-[radial-gradient(circle_at_center,rgba(88,101,242,0.18),transparent_60%)]" />
-      </motion.div>
+          </motion.div>
+        </div>
+      </div>
 
       {/* Floating bottom badge */}
       <motion.div
@@ -915,13 +1035,13 @@ function Stats() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.05, duration: 0.5 }}
-            className="group relative overflow-hidden px-6 py-7 transition-colors hover:bg-white/[0.015]"
+            className="group relative overflow-hidden px-4 py-6 transition-colors hover:bg-white/[0.015] sm:px-6 sm:py-7"
           >
             <span
               className="pointer-events-none absolute inset-x-0 -bottom-px h-[2px] origin-left scale-x-0 transition-transform duration-500 group-hover:scale-x-100"
               style={{ backgroundColor: s.accent }}
             />
-            <div className="font-display text-5xl font-black leading-none tracking-tight md:text-6xl">
+            <div className="font-display text-4xl font-black leading-none tracking-tight sm:text-5xl md:text-6xl">
               {s.n}
             </div>
             <div className="mt-2 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/45">
@@ -1014,37 +1134,38 @@ function CanvasShowcase() {
   const active = CANVAS_TABS.find((t) => t.id === tab);
 
   return (
-    <section className="relative border-b border-white/[0.06] py-32 px-6">
+    <section className="relative border-b border-white/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
       <div className="mx-auto max-w-[1440px]">
-        <header className="mb-14 flex flex-col items-start gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-10 flex flex-col items-start gap-6 sm:mb-14 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
               <span className="h-1 w-6 bg-[var(--lime)]" />
               See it move / Live demo
             </div>
-            <h2 className="font-display max-w-3xl text-[10vw] font-black leading-[0.9] tracking-[-0.02em] lg:text-[6rem]">
+            <h2 className="font-display max-w-3xl text-[12vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
               NOT A SCREENSHOT.
               <br />
               <span className="text-white/30">A REAL DEMO.</span>
             </h2>
           </div>
-          <p className="font-body max-w-sm text-[15px] leading-relaxed text-white/55">
+          <p className="font-body max-w-sm text-[14px] leading-relaxed text-white/55 sm:text-[15px]">
             Click a tab. Watch the canvas react. Each one of these is a
             two-click operation in the actual editor.
           </p>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-12">
-          {/* Tabs */}
+          {/* Tabs — 2-column grid on mobile so all 4 are visible without
+              horizontal scrolling, vertical stack from lg up. */}
           <div className="lg:col-span-4">
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
               {CANVAS_TABS.map((t, i) => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => setTab(t.id)}
                   className={[
-                    'group relative overflow-hidden rounded-xl border px-5 py-4 text-left transition-all duration-300',
+                    'group relative overflow-hidden rounded-xl border px-4 py-3 text-left transition-all duration-300 sm:px-5 sm:py-4',
                     tab === t.id
                       ? 'border-white/15 bg-white/[0.05]'
                       : 'border-white/[0.06] bg-transparent hover:border-white/10 hover:bg-white/[0.02]',
@@ -1056,26 +1177,26 @@ function CanvasShowcase() {
                       className="absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-[var(--discord)] to-[var(--magenta)]"
                     />
                   )}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                       <t.icon
                         className={[
-                          'h-4 w-4 transition-colors',
+                          'h-4 w-4 flex-shrink-0 transition-colors',
                           tab === t.id ? 'text-[var(--lime)]' : 'text-white/40',
                         ].join(' ')}
                       />
-                      <div>
+                      <div className="min-w-0">
                         <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/35">
                           {String(i + 1).padStart(2, '0')}
                         </div>
-                        <div className="font-display text-2xl font-black leading-none tracking-tight">
+                        <div className="font-display truncate text-lg font-black leading-none tracking-tight sm:text-2xl">
                           {t.label}
                         </div>
                       </div>
                     </div>
                     <ChevronRight
                       className={[
-                        'h-4 w-4 transition-transform',
+                        'hidden h-4 w-4 flex-shrink-0 transition-transform sm:block',
                         tab === t.id
                           ? 'translate-x-0.5 text-white'
                           : 'text-white/20',
@@ -1115,8 +1236,37 @@ function CanvasShowcase() {
 }
 
 function DemoCanvas({ tab }) {
+  // Internal positions inside DragDemo/MusicDemo/etc. were laid out for a
+  // ~640px-wide canvas. On narrower viewports we scale the inner layer so
+  // nothing overflows or piles up.
+  const wrapRef = useRef(null);
+  const [scale, setScale] = useState(1);
+  const DESIGN_W = 640;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const compute = () => {
+      const w = wrapRef.current?.clientWidth ?? DESIGN_W;
+      setScale(Math.min(1, w / DESIGN_W));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const designH = DESIGN_W * 10 / 16;
+
   return (
-    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0a0a] to-[#040404] shadow-[0_30px_70px_rgba(0,0,0,0.45)]">
+    <div ref={wrapRef} className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0a0a] to-[#040404] shadow-[0_30px_70px_rgba(0,0,0,0.45)]" style={{ height: designH * scale }}>
+      <div
+        style={{
+          width: DESIGN_W,
+          height: designH,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+        }}
+        className="relative"
+      >
       {/* Toolbar */}
       <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/40 px-4 py-2">
         <div className="flex items-center gap-2">
@@ -1161,6 +1311,7 @@ function DemoCanvas({ tab }) {
           {tab === 'effects' && <EffectsDemo key="effects" />}
           {tab === 'url' && <UrlDemo key="url" />}
         </AnimatePresence>
+      </div>
       </div>
     </div>
   );
@@ -1551,8 +1702,8 @@ function ProfileWall() {
   const duration = Math.min(120, Math.max(30, profiles.length * 8));
 
   return (
-    <section className="relative border-b border-white/[0.06] py-32">
-      <div className="mx-auto mb-14 max-w-[1440px] px-6">
+    <section className="relative border-b border-white/[0.06] py-20 sm:py-24 lg:py-32">
+      <div className="mx-auto mb-10 max-w-[1440px] px-4 sm:mb-14 sm:px-6">
         <header className="flex flex-col items-start gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
@@ -1560,7 +1711,7 @@ function ProfileWall() {
               The wall / community ·{' '}
               <span className="text-white/65">{profiles.length} live</span>
             </div>
-            <h2 className="font-display max-w-3xl text-[10vw] font-black leading-[0.9] tracking-[-0.02em] lg:text-[6rem]">
+            <h2 className="font-display max-w-3xl text-[12vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
               REAL PROFILES.
               <br />
               <span style={{ fontFamily: 'Playfair Display' }} className="italic font-medium text-white/50">
@@ -1582,8 +1733,8 @@ function ProfileWall() {
       {/* Carousel — full bleed for cinematic edge */}
       <div className="group relative">
         {/* Side fades */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-[#050505] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-[#050505] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[#050505] to-transparent sm:w-32" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-[#050505] to-transparent sm:w-32" />
 
         {loading && profiles.length === 0 && (
           <div className="flex gap-5 px-6">
@@ -1642,7 +1793,7 @@ function CarouselCard({ profile, index }) {
   return (
     <Link
       to={`/${profile.slug}`}
-      className="group/card relative block h-[380px] w-[280px] flex-shrink-0 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a0a0a] transition-all duration-500 hover:-translate-y-1 hover:border-white/20"
+      className="group/card relative block h-[320px] w-[230px] flex-shrink-0 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a0a0a] transition-all duration-500 hover:-translate-y-1 hover:border-white/20 sm:h-[380px] sm:w-[280px]"
     >
       {/* Avatar full-bleed background */}
       <div className="absolute inset-0">
@@ -1827,21 +1978,21 @@ function Features() {
     },
   ];
   return (
-    <section id="features" className="relative border-b border-white/[0.06] py-32 px-6">
+    <section id="features" className="relative border-b border-white/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
       <div className="mx-auto max-w-[1440px]">
-        <header className="mb-16 flex flex-col items-start gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-12 flex flex-col items-start gap-6 sm:mb-16 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
               <span className="h-1 w-6 bg-[var(--discord)]" />
               Features / 06 levers
             </div>
-            <h2 className="font-display max-w-3xl text-[10vw] font-black leading-[0.9] tracking-[-0.02em] lg:text-[6rem]">
+            <h2 className="font-display max-w-3xl text-[12vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
               EVERY KNOB.
               <br />
               <span className="text-white/30">NONE OF THE BLOAT.</span>
             </h2>
           </div>
-          <p className="font-body max-w-sm text-[15px] leading-relaxed text-white/55">
+          <p className="font-body max-w-sm text-[14px] leading-relaxed text-white/55 sm:text-[15px]">
             We built this for people who actually care how their profile looks.
             Not another Linktree fork. Not a template marketplace.
           </p>
@@ -1883,7 +2034,7 @@ function FeatureCard({ n, icon: Icon, title, desc, tag }) {
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       style={{ rotateX: rx, rotateY: ry, transformStyle: 'preserve-3d', perspective: 1200 }}
-      className="group relative flex min-h-[280px] flex-col gap-6 overflow-hidden bg-[#0a0a0a] p-8 transition-colors hover:bg-[#0d0d0d]"
+      className="group relative flex min-h-[240px] flex-col gap-5 overflow-hidden bg-[#0a0a0a] p-6 transition-colors hover:bg-[#0d0d0d] sm:min-h-[280px] sm:gap-6 sm:p-8"
     >
       <span
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
@@ -1946,14 +2097,14 @@ function HowItWorks() {
     },
   ];
   return (
-    <section id="how" className="relative border-b border-white/[0.06] py-32 px-6">
+    <section id="how" className="relative border-b border-white/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
       <div className="mx-auto max-w-[1440px]">
-        <header className="mb-16 max-w-2xl">
+        <header className="mb-12 max-w-2xl sm:mb-16">
           <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
             <span className="h-1 w-6 bg-[var(--lime)]" />
             Workflow / 3 steps
           </div>
-          <h2 className="font-display text-[10vw] font-black leading-[0.9] tracking-[-0.02em] lg:text-[6rem]">
+          <h2 className="font-display text-[12vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
             THIRTY SECONDS.
             <br />
             <span className="text-white/30">THAT'S IT.</span>
@@ -2025,25 +2176,72 @@ function Comparison() {
     },
   ];
   return (
-    <section id="compare" className="relative border-b border-white/[0.06] py-32 px-6">
+    <section id="compare" className="relative border-b border-white/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
       <div className="mx-auto max-w-[1240px]">
-        <header className="mb-14 flex flex-col items-start gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-10 flex flex-col items-start gap-6 sm:mb-14 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
               <span className="h-1 w-6 bg-[var(--magenta)]" />
               Receipts / Comparison
             </div>
-            <h2 className="font-display text-[10vw] font-black leading-[0.9] tracking-[-0.02em] lg:text-[6rem]">
+            <h2 className="font-display text-[14vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
               VS. THE REST.
             </h2>
           </div>
-          <p className="font-body max-w-sm text-[15px] leading-relaxed text-white/55">
+          <p className="font-body max-w-sm text-[14px] leading-relaxed text-white/55 sm:text-[15px]">
             Most "link-in-bio" tools are a button list with a wallpaper.
             We're the editor.
           </p>
         </header>
 
-        <div className="overflow-hidden rounded-2xl border border-white/[0.08]">
+        {/* Mobile: stacked cards (one per competitor) */}
+        <div className="space-y-4 md:hidden">
+          {competitors.map((c) => (
+            <div
+              key={c.name}
+              className={[
+                'overflow-hidden rounded-2xl border',
+                c.us
+                  ? 'border-[var(--discord)]/40 bg-[var(--discord)]/[0.06]'
+                  : 'border-white/[0.08] bg-white/[0.015]',
+              ].join(' ')}
+            >
+              <div
+                className={[
+                  'flex items-center justify-between px-4 py-3',
+                  c.us ? 'bg-[var(--discord)]/15' : 'bg-white/[0.03]',
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-2">
+                  {c.us && (
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--lime)] shadow-[0_0_6px_var(--lime)]" />
+                  )}
+                  <span className="font-mono-tight text-[11px] uppercase tracking-[0.22em] text-white">
+                    {c.name}
+                  </span>
+                </div>
+                <span className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/40">
+                  {c.score.filter(Boolean).length}/{features.length}
+                </span>
+              </div>
+              <ul className="divide-y divide-white/[0.05]">
+                {features.map((f, i) => (
+                  <li key={f} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="font-body text-[13px] text-white/70">{f}</span>
+                    {c.score[i] ? (
+                      <Check className={c.us ? 'h-4 w-4 flex-shrink-0 text-[var(--lime)]' : 'h-4 w-4 flex-shrink-0 text-white/40'} />
+                    ) : (
+                      <X className="h-4 w-4 flex-shrink-0 text-white/15" />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop: full comparison grid */}
+        <div className="hidden overflow-hidden rounded-2xl border border-white/[0.08] md:block">
           <div className="grid grid-cols-[1.6fr_repeat(4,1fr)] border-b border-white/[0.08] bg-white/[0.03]">
             <div className="px-5 py-4 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/40">
               Feature
@@ -2132,14 +2330,14 @@ function Faq() {
   ];
   const [open, setOpen] = useState(0);
   return (
-    <section id="faq" className="relative border-b border-white/[0.06] py-32 px-6">
-      <div className="mx-auto grid max-w-[1240px] gap-14 lg:grid-cols-12">
+    <section id="faq" className="relative border-b border-white/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
+      <div className="mx-auto grid max-w-[1240px] gap-10 sm:gap-14 lg:grid-cols-12">
         <div className="lg:col-span-4">
           <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
             <span className="h-1 w-6 bg-[var(--discord)]" />
             FAQ / Common questions
           </div>
-          <h2 className="font-display text-[12vw] font-black leading-[0.9] tracking-[-0.02em] lg:text-[5rem]">
+          <h2 className="font-display text-[14vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[12vw] lg:text-[5rem]">
             QUICK
             <br />
             ANSWERS.
@@ -2158,13 +2356,13 @@ function Faq() {
                 <button
                   type="button"
                   onClick={() => setOpen(open === i ? -1 : i)}
-                  className="group flex w-full items-start justify-between gap-6 py-6 text-left transition"
+                  className="group flex w-full items-start justify-between gap-4 py-5 text-left transition sm:gap-6 sm:py-6"
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     <span className="font-mono-tight pt-1 text-[10px] uppercase tracking-[0.22em] text-white/30">
                       {String(i + 1).padStart(2, '0')}
                     </span>
-                    <span className="font-display text-2xl font-black tracking-tight transition-colors group-hover:text-white md:text-3xl">
+                    <span className="font-display text-xl font-black tracking-tight transition-colors group-hover:text-white sm:text-2xl md:text-3xl">
                       {item.q}
                     </span>
                   </div>
@@ -2186,7 +2384,7 @@ function Faq() {
                       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                       className="overflow-hidden"
                     >
-                      <p className="font-body pb-6 pl-12 pr-12 text-[15px] leading-relaxed text-white/60">
+                      <p className="font-body pb-6 pl-9 pr-2 text-[14px] leading-relaxed text-white/60 sm:pl-12 sm:pr-12 sm:text-[15px]">
                         {item.a}
                       </p>
                     </motion.div>
@@ -2207,9 +2405,9 @@ function Faq() {
 
 function FinalCta({ user }) {
   return (
-    <section id="pricing" className="relative px-6 py-32">
+    <section id="pricing" className="relative px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
       <div className="mx-auto max-w-[1240px]">
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0c0c0c] to-black p-10 lg:p-20">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0c0c0c] to-black p-6 sm:p-10 lg:p-20">
           <div className="absolute -right-32 -top-32 h-[500px] w-[500px] rounded-full bg-[var(--discord)]/20 blur-[120px]" />
           <div className="absolute -left-32 -bottom-32 h-[400px] w-[400px] rounded-full bg-[var(--magenta)]/15 blur-[120px]" />
           <div
@@ -2221,15 +2419,15 @@ function FinalCta({ user }) {
             }}
           />
 
-          <div className="relative flex flex-col items-start gap-10">
-            <div className="flex items-center gap-3 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
+          <div className="relative flex flex-col items-start gap-7 sm:gap-10">
+            <div className="flex flex-wrap items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45 sm:gap-3">
               <span className="flex items-center gap-1 rounded-full border border-[var(--lime)]/40 bg-[var(--lime)]/10 px-2.5 py-1 text-[var(--lime)]">
                 <span className="h-1 w-1 rounded-full bg-[var(--lime)] shadow-[0_0_6px_var(--lime)]" />
                 free forever
               </span>
               <span>· no card · 30s setup</span>
             </div>
-            <h2 className="font-display text-[12vw] font-black leading-[0.86] tracking-[-0.02em] lg:text-[8.5rem]">
+            <h2 className="font-display text-[14vw] font-black leading-[0.86] tracking-[-0.02em] sm:text-[12vw] lg:text-[8.5rem]">
               STOP EXPLAINING <br />
               <span style={{ fontFamily: 'Playfair Display' }} className="italic font-medium text-white/55">who you are.</span>
               <br />
@@ -2237,7 +2435,7 @@ function FinalCta({ user }) {
                 SHOW IT.
               </span>
             </h2>
-            <p className="font-body max-w-2xl text-[17px] leading-relaxed text-white/65">
+            <p className="font-body max-w-2xl text-[15px] leading-relaxed text-white/65 sm:text-[17px]">
               Thirty seconds to a profile that actually looks like you. Pick your
               URL. Pin your Discord, your games, your music. Share it anywhere
               you live online.
@@ -2311,8 +2509,8 @@ function Footer() {
     },
   ];
   return (
-    <footer className="relative border-t border-white/[0.06] px-6 py-16">
-      <div className="mx-auto grid max-w-[1440px] gap-12 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+    <footer className="relative border-t border-white/[0.06] px-4 py-12 sm:px-6 sm:py-16">
+      <div className="mx-auto grid max-w-[1440px] gap-10 sm:grid-cols-2 sm:gap-12 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
         <div className="space-y-5">
           <Wordmark />
           <p className="font-body max-w-xs text-[13px] leading-relaxed text-white/45">
@@ -2367,7 +2565,7 @@ function Footer() {
           </div>
         ))}
       </div>
-      <div className="mx-auto mt-14 flex max-w-[1440px] items-center justify-between border-t border-white/[0.06] pt-6 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/30">
+      <div className="mx-auto mt-10 flex max-w-[1440px] flex-col items-start justify-between gap-3 border-t border-white/[0.06] pt-6 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/30 sm:mt-14 sm:flex-row sm:items-center sm:gap-0">
         <span>© 2026 persn.me · all rights reserved</span>
         <span className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--lime)] shadow-[0_0_6px_var(--lime)]" />

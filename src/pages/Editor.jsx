@@ -10,7 +10,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import DragCanvas from '../components/editor/DragCanvas.jsx';
 import MusicPlayer from '../components/MusicPlayer.jsx';
 import Sidebar from '../components/editor/Sidebar.jsx';
+import MobileEditor from '../components/editor/MobileEditor.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage.js';
+import { useIsMobile } from '../hooks/useIsMobile.js';
 import {
   makeDefaultProfile,
   makeWidgetInstance,
@@ -56,6 +58,7 @@ const AUTOSAVE_DEBOUNCE_MS = 5000;
  */
 export default function Editor() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile(1024); // anything below `lg` gets the mobile editor
   const [profile, setProfile] = useLocalStorage(STORAGE_KEY, makeDefaultProfile());
   const [selectedIds, setSelectedIds] = useState([]);
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : null;
@@ -588,9 +591,69 @@ export default function Editor() {
     handleCompleteOnboarding();
   };
 
+  // Modals are rendered for both layouts.
+  const modals = (
+    <>
+      {pendingTemplate && (
+        <TemplateConfirmModal
+          template={pendingTemplate}
+          onCancel={() => setPendingTemplate(null)}
+          onConfirm={() => {
+            setProfile(pendingTemplate.profile);
+            setSelectedIds([]);
+            setPendingTemplate(null);
+          }}
+        />
+      )}
+
+      {historyOpen && (
+        <HistoryDrawer
+          slug={serverSlug}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={(restoredData) => {
+            setProfile(restoredData);
+            setHistoryOpen(false);
+          }}
+        />
+      )}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        <MusicPlayer music={profile.music} accent={accentHex} hideControls>
+          <MobileEditor
+            profile={profile}
+            setProfile={setProfile}
+            me={me}
+            serverSlug={serverSlug}
+            saveStatus={saveStatus}
+            lastSavedAt={lastSavedAt}
+            onForceSave={forceSave}
+            onPreview={openPreview}
+            onReset={resetProfile}
+            onLogout={handleLogout}
+            onOpenHistory={() => setHistoryOpen(true)}
+            onAddWidget={addWidget}
+            onRemoveWidget={removeWidget}
+            onUpdateWidget={updateWidget}
+            onUpdateWidgetData={updateWidgetData}
+            onUpdateWidgetStyle={updateWidgetStyle}
+            onUpdateTheme={updateTheme}
+            onUpdateBackground={updateBackground}
+            onUpdateMusic={updateMusic}
+            onSlugClaimed={handleSlugClaimed}
+          />
+        </MusicPlayer>
+        {modals}
+      </>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-ink-950 text-white">
-      <main className="relative hidden flex-1 lg:block">
+      <main className="relative flex-1">
         <VerificationBanner user={me} />
         <TopBar
           me={me}
@@ -600,7 +663,7 @@ export default function Editor() {
           onForceSave={forceSave}
           onOpenShare={() => {
             setSidebarSection('share');
-            setSelectedId(null);
+            setSelectedIds([]);
           }}
           onPreview={openPreview}
           onReset={resetProfile}
@@ -619,8 +682,8 @@ export default function Editor() {
         </MusicPlayer>
 
         {showOnboarding && (
-          <OnboardingModal 
-            onComplete={handleCompleteOnboarding} 
+          <OnboardingModal
+            onComplete={handleCompleteOnboarding}
             onApplyTemplate={handleApplyOnboardingTemplate}
           />
         )}
@@ -630,21 +693,6 @@ export default function Editor() {
           </div>
         )}
       </main>
-
-      {/* Mobile gate */}
-      <div className="flex flex-1 items-center justify-center px-8 text-center lg:hidden">
-        <div className="max-w-sm">
-          <div className="eyebrow mb-3 text-discord">persn.me</div>
-          <h1 className="mb-3 text-2xl font-semibold tracking-tight">
-            Desktop recommended
-          </h1>
-          <p className="text-sm text-white/60">
-            The freeform editor uses drag-and-drop on a canvas — it's built for
-            a bigger screen. Your profile will still look great on mobile once
-            published.
-          </p>
-        </div>
-      </div>
 
       <Sidebar
         profile={profile}
@@ -675,28 +723,7 @@ export default function Editor() {
         onOpenHistory={() => setHistoryOpen(true)}
       />
 
-      {pendingTemplate && (
-        <TemplateConfirmModal
-          template={pendingTemplate}
-          onCancel={() => setPendingTemplate(null)}
-          onConfirm={() => {
-            setProfile(pendingTemplate.profile);
-            setSelectedId(null);
-            setPendingTemplate(null);
-          }}
-        />
-      )}
-
-      {historyOpen && (
-        <HistoryDrawer
-          slug={serverSlug}
-          onClose={() => setHistoryOpen(false)}
-          onRestored={(restoredData) => {
-            setProfile(restoredData);
-            setHistoryOpen(false);
-          }}
-        />
-      )}
+      {modals}
     </div>
   );
 }

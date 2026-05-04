@@ -20,10 +20,12 @@ export default function DiscordServersWidget({ widget, accent }) {
   return (
     <WidgetShell>
       {/* `auto-fit` (not auto-fill) collapses empty tracks so a single card
-          stays centred instead of pinning to the left. `justify-items-center`
-          centres each card within its track when content is narrower than
-          the column. */}
-      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(140px,1fr))] auto-rows-min gap-2.5 overflow-y-auto thin-scroll px-4 pb-4 justify-items-center">
+          stays centred instead of pinning to the left. The `min(140px,100%)`
+          inside the minmax keeps the grid from forcing a 140px track wider
+          than the container — without it, narrow widgets (mobile stack) push
+          horizontal overflow. `minmax(0, 1fr)` on the second arg lets the
+          flex children's `truncate` actually clip. */}
+      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(min(140px,100%),1fr))] auto-rows-min gap-2.5 overflow-y-auto overflow-x-hidden thin-scroll px-4 pb-4 justify-items-stretch">
         {servers.map((server) => (
           <ServerCard key={server.id} server={server} accent={accentColor} />
         ))}
@@ -51,7 +53,7 @@ function ServerCard({ server, accent }) {
       href={server.invite || '#'}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.04]"
+      className="group flex min-w-0 items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.04]"
       style={{
         boxShadow: 'none',
       }}

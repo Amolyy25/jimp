@@ -198,7 +198,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
       className={`relative min-h-screen w-full overflow-x-hidden ${animClass}`}
       style={{ background: profile.theme?.pageBg || '#0a0a0a' }}
     >
-      <BackgroundLayer background={profile.background} />
+      <BackgroundLayer background={profile.background} viewportFixed />
 
       {/* Scoped custom CSS — only the bytes that survived server sanitization
           end up here, but we still scope to #profile-root so a stray rule
