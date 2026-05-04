@@ -187,6 +187,18 @@ const styles = `
     animation: scan 6s linear infinite;
     pointer-events: none;
   }
+  /* Scroll-driven progress bar. The bar starts collapsed and scales to full
+     width as the document scrolls. Browsers without scroll-timeline support
+     simply hide the bar (the @supports gate) — better than a stale full-width
+     line. */
+  .scroll-progress { transform: scaleX(0); }
+  @supports (animation-timeline: scroll()) {
+    @keyframes scroll-progress-grow { to { transform: scaleX(1); } }
+    .scroll-progress {
+      animation: scroll-progress-grow linear forwards;
+      animation-timeline: scroll(root);
+    }
+  }
 `;
 
 /* ============================================================ */
@@ -194,12 +206,13 @@ const styles = `
 /* ============================================================ */
 
 function ScrollProgress() {
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, { stiffness: 200, damping: 30 });
+  // Native CSS scroll-driven animation. Avoids framer-motion's useSpring,
+  // which Lighthouse flagged for ~530ms of forced reflow per scroll on
+  // mobile because each frame queried layout. This is GPU-only.
   return (
-    <motion.div
-      style={{ scaleX, transformOrigin: '0% 50%' }}
-      className="fixed left-0 right-0 top-0 z-[100] h-[2px] bg-gradient-to-r from-[var(--discord)] via-[var(--magenta)] to-[var(--lime)]"
+    <div
+      aria-hidden
+      className="scroll-progress fixed left-0 right-0 top-0 z-[100] h-[2px] origin-left bg-gradient-to-r from-[var(--discord)] via-[var(--magenta)] to-[var(--lime)]"
     />
   );
 }
@@ -580,12 +593,18 @@ function Wordmark() {
 
 function Hero({ user }) {
   const ref = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ['start start', 'end start'],
-  });
-  const yMockup = useTransform(scrollYProgress, [0, 1], [0, -60]);
-  const yLabel = useTransform(scrollYProgress, [0, 1], [0, -40]);
+  // Skip the parallax wiring on coarse pointers (touch / mobile). useScroll
+  // forces a layout query per scroll frame; on mobile that costs us ~500ms
+  // of forced reflow for a 60px parallax shift nobody notices on a phone.
+  const enableParallax = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  }, []);
+  const { scrollYProgress } = useScroll(
+    enableParallax ? { target: ref, offset: ['start start', 'end start'] } : {},
+  );
+  const yMockup = useTransform(scrollYProgress, [0, 1], [0, enableParallax ? -60 : 0]);
+  const yLabel = useTransform(scrollYProgress, [0, 1], [0, enableParallax ? -40 : 0]);
 
   return (
     <section ref={ref} className="relative pb-16 pt-24 sm:pb-20 sm:pt-32 lg:pt-44 lg:pb-28">
@@ -649,14 +668,18 @@ function Hero({ user }) {
               </span>
             </motion.h1>
 
-            <motion.p
-              variants={fadeUp}
-              className="font-body max-w-lg text-[15px] font-light leading-relaxed text-white/60 sm:text-[17px]"
-            >
+            {/*
+              LCP element. Lighthouse flagged a 2.6s "element render delay"
+              caused by the parent's staggerChildren + fadeUp opacity:0 →
+              opacity:1 sequence. We keep this paragraph fully opaque from
+              frame 0 so LCP fires as soon as the font swaps, while still
+              letting the rest of the hero stagger.
+            */}
+            <p className="font-body max-w-lg text-[15px] font-light leading-relaxed text-white/60 sm:text-[17px]">
               Drag widgets on a freeform canvas. Pin your music, your games, your
               Discord. Claim <span className="text-white/90">persn.me/yourname</span> —
               flex it everywhere. <span className="text-white/60">No templates. No grids. No bullshit.</span>
-            </motion.p>
+            </p>
 
             {user && (
               <motion.div

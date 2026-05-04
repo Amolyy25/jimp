@@ -13,6 +13,10 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Avatar CDNs used by the ProfileWall — preconnect saves ~300ms on
+         the first paint when the explore feed lands. -->
+    <link rel="preconnect" href="https://cdn.discordapp.com" crossorigin />
+    <link rel="preconnect" href="https://i.pinimg.com" crossorigin />
     <!--
       Load Google Fonts non-blocking. The print/onload trick fetches the
       stylesheet without blocking the critical rendering path, then swaps it
