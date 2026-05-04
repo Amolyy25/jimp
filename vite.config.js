@@ -23,4 +23,19 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Lighthouse flagged "missing source maps for large JS" — emit them in
+    // prod so debugging and audits get readable stack traces.
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        // Split heavy vendor chunks so the landing page doesn't have to wait
+        // on the entire bundle. framer-motion alone is ~70KB gzipped.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          motion: ['framer-motion'],
+        },
+      },
+    },
+  },
 });

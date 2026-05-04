@@ -47,6 +47,35 @@ import {
 import logo from '../image/logo.jpeg';
 
 /**
+ * Downsize a remote avatar URL to fit a displayed pixel size.
+ *
+ * Discord and Pinterest both expose smaller variants we can request directly,
+ * which avoids downloading multi-MB originals just to render a 80–280px tile.
+ * The blur backgrounds in particular were pulling 2MB GIFs that Lighthouse
+ * flagged as wildly oversized.
+ */
+function rescaleAvatarUrl(url, targetPx) {
+  if (!url || typeof url !== 'string') return url;
+  // Discord CDN: ?size=N (powers of two preferred)
+  if (/cdn\.discordapp\.com/.test(url)) {
+    const target = targetPx <= 64 ? 64 : targetPx <= 128 ? 128 : 256;
+    return url.replace(/([?&])size=\d+/, `$1size=${target}`)
+      .replace(/^([^?]+)$/, `$1?size=${target}`);
+  }
+  // Pinterest: i.pinimg.com/originals/... or i.pinimg.com/736x/... — the
+  // first path segment after the host is a size token. Use 236x for blur,
+  // 474x for crisper circles.
+  if (/i\.pinimg\.com/.test(url)) {
+    const size = targetPx <= 200 ? '236x' : '474x';
+    return url.replace(
+      /(i\.pinimg\.com)\/(originals|\d+x)\//,
+      `$1/${size}/`,
+    );
+  }
+  return url;
+}
+
+/**
  * persn.me landing — bold editorial-gamer-terminal aesthetic.
  *   - Bebas Neue display, JetBrains Mono labels, Outfit body
  *   - Discord violet + electric lime + hot magenta crash accents
@@ -81,16 +110,18 @@ export default function Landing() {
 
       <Nav user={user} authChecked={authChecked} onSignOut={async () => { await logout(); setUser(null); }} />
 
-      <Hero user={user} />
-      <Stats />
-      <Marquee />
-      <CanvasShowcase />
-      <ProfileWall />
-      <Features />
-      <HowItWorks />
-      <Comparison />
-      <Faq />
-      <FinalCta user={user} />
+      <main id="main">
+        <Hero user={user} />
+        <Stats />
+        <Marquee />
+        <CanvasShowcase />
+        <ProfileWall />
+        <Features />
+        <HowItWorks />
+        <Comparison />
+        <Faq />
+        <FinalCta user={user} />
+      </main>
       <Footer />
 
       <style>{styles}</style>
@@ -342,7 +373,7 @@ function Nav({ user, authChecked, onSignOut }) {
                         className="flex items-center justify-between rounded-md px-3 py-3 font-mono-tight text-[11px] font-medium uppercase tracking-[0.22em] text-white/70 transition hover:bg-white/[0.05] hover:text-white"
                       >
                         {label}
-                        <ArrowUpRight className="h-3.5 w-3.5 text-white/40" />
+                        <ArrowUpRight className="h-3.5 w-3.5 text-white/60" />
                       </Link>
                     ) : (
                       <a
@@ -351,7 +382,7 @@ function Nav({ user, authChecked, onSignOut }) {
                         className="flex items-center justify-between rounded-md px-3 py-3 font-mono-tight text-[11px] font-medium uppercase tracking-[0.22em] text-white/70 transition hover:bg-white/[0.05] hover:text-white"
                       >
                         {label}
-                        <ChevronRight className="h-3.5 w-3.5 text-white/40" />
+                        <ChevronRight className="h-3.5 w-3.5 text-white/60" />
                       </a>
                     )}
                   </li>
@@ -364,7 +395,7 @@ function Nav({ user, authChecked, onSignOut }) {
                       className="mt-2 flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] px-3 py-3 font-mono-tight text-[11px] font-medium uppercase tracking-[0.22em] text-white/80 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       Sign in
-                      <ArrowUpRight className="h-3.5 w-3.5 text-white/40" />
+                      <ArrowUpRight className="h-3.5 w-3.5 text-white/60" />
                     </Link>
                   </li>
                 )}
@@ -431,7 +462,7 @@ function UserMenu({ user, onSignOut }) {
         </span>
         <ChevronRight
           className={[
-            'h-3.5 w-3.5 text-white/45 transition-transform',
+            'h-3.5 w-3.5 text-white/65 transition-transform',
             open ? 'rotate-90' : 'rotate-90',
           ].join(' ')}
         />
@@ -447,13 +478,13 @@ function UserMenu({ user, onSignOut }) {
             className="absolute right-0 top-[110%] w-64 overflow-hidden rounded-xl border border-white/10 bg-black/90 p-1.5 shadow-[0_30px_70px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
           >
             <div className="border-b border-white/[0.06] px-3 py-3">
-              <div className="font-mono-tight text-[8px] uppercase tracking-[0.22em] text-white/40">
+              <div className="font-mono-tight text-[8px] uppercase tracking-[0.22em] text-white/60">
                 Signed in as
               </div>
               <div className="mt-0.5 truncate text-[13px] font-semibold">
                 @{user.username}
               </div>
-              <div className="truncate font-mono-tight text-[10px] text-white/40">
+              <div className="truncate font-mono-tight text-[10px] text-white/60">
                 {user.email}
               </div>
             </div>
@@ -492,7 +523,7 @@ function MenuItem({ to, icon: Icon, label, hint }) {
         {label}
       </span>
       {hint && (
-        <span className="font-mono-tight text-[8px] uppercase tracking-[0.22em] text-white/30">
+        <span className="font-mono-tight text-[8px] uppercase tracking-[0.22em] text-white/55">
           {hint}
         </span>
       )}
@@ -526,12 +557,16 @@ function Wordmark() {
         <img
           src={logo}
           alt="persn.me"
+          width="32"
+          height="32"
+          decoding="async"
+          fetchpriority="high"
           className="relative h-8 w-8 rounded-md object-cover ring-1 ring-white/10"
         />
       </div>
       <div className="flex items-baseline gap-2">
         <span className="font-display text-xl font-black leading-none">PERSN.ME</span>
-        <span className="hidden font-mono-tight text-[9px] uppercase tracking-[0.24em] text-white/30 sm:inline">
+        <span className="hidden font-mono-tight text-[9px] uppercase tracking-[0.24em] text-white/55 sm:inline">
           v2.4
         </span>
       </div>
@@ -578,7 +613,7 @@ function Hero({ user }) {
                 Live · Profile builder · v2.4
               </span>
               <span className="hidden h-3 w-px bg-white/15 md:block" />
-              <span className="hidden font-mono-tight text-[10px] uppercase tracking-[0.26em] text-white/35 md:inline">
+              <span className="hidden font-mono-tight text-[10px] uppercase tracking-[0.26em] text-white/55 md:inline">
                 12,438 profiles shipped
               </span>
             </motion.div>
@@ -620,7 +655,7 @@ function Hero({ user }) {
             >
               Drag widgets on a freeform canvas. Pin your music, your games, your
               Discord. Claim <span className="text-white/90">persn.me/yourname</span> —
-              flex it everywhere. <span className="text-white/40">No templates. No grids. No bullshit.</span>
+              flex it everywhere. <span className="text-white/60">No templates. No grids. No bullshit.</span>
             </motion.p>
 
             {user && (
@@ -677,7 +712,7 @@ function Hero({ user }) {
               ].map(([label, Icon]) => (
                 <span
                   key={label}
-                  className="flex items-center gap-1.5 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/35"
+                  className="flex items-center gap-1.5 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/55"
                 >
                   <Icon className="h-3 w-3 text-[var(--lime)]" />
                   {label}
@@ -772,7 +807,7 @@ function HeroMockup() {
             className="relative h-full w-full"
           >
             {/* Tag bar */}
-        <div className="absolute -left-2 -top-7 z-20 flex items-center gap-2 font-mono-tight text-[9px] uppercase tracking-[0.24em] text-white/40">
+        <div className="absolute -left-2 -top-7 z-20 flex items-center gap-2 font-mono-tight text-[9px] uppercase tracking-[0.24em] text-white/60">
           <span className="h-px w-6 bg-white/30" />
           live preview / persn.me
         </div>
@@ -790,7 +825,7 @@ function HeroMockup() {
             </div>
             <div className="flex items-center gap-1.5 rounded-sm border border-white/5 bg-white/[0.03] px-2 py-0.5">
               <Lock className="h-2.5 w-2.5 text-[var(--lime)]" />
-              <span className="font-mono-tight text-[9px] uppercase tracking-[0.18em] text-white/45">
+              <span className="font-mono-tight text-[9px] uppercase tracking-[0.18em] text-white/65">
                 persn.me/yourname
               </span>
             </div>
@@ -838,7 +873,7 @@ function HeroMockup() {
                     <Zap className="h-2 w-2" /> Nitro
                   </span>
                 </div>
-                <div className="font-mono-tight text-[8px] uppercase tracking-[0.2em] text-white/45">
+                <div className="font-mono-tight text-[8px] uppercase tracking-[0.2em] text-white/65">
                   Tokyo · Streaming
                 </div>
               </div>
@@ -850,7 +885,7 @@ function HeroMockup() {
               style={{ transform: 'translateZ(30px)' }}
               className="absolute right-5 top-5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 backdrop-blur-md"
             >
-              <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/40">
+              <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/60">
                 Local
               </div>
               <div className="font-mono-tight text-sm font-bold tabular-nums">
@@ -896,7 +931,7 @@ function HeroMockup() {
               <div className="h-9 w-9 flex-shrink-0 rounded-lg bg-gradient-to-br from-[var(--discord)] to-violet-500" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[11px] font-bold">persn.me HQ</div>
-                <div className="flex items-center gap-1 truncate font-mono-tight text-[8px] text-white/45">
+                <div className="flex items-center gap-1 truncate font-mono-tight text-[8px] text-white/65">
                   <span className="h-1 w-1 rounded-full bg-[var(--lime)]" />
                   4.2k online
                 </div>
@@ -909,7 +944,7 @@ function HeroMockup() {
               style={{ transform: 'translateZ(20px)' }}
               className="absolute right-5 top-[212px] flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 backdrop-blur-md"
             >
-              <Eye className="h-3 w-3 text-white/40" />
+              <Eye className="h-3 w-3 text-white/60" />
               <span className="font-mono-tight text-[10px] tabular-nums">12,847</span>
             </motion.div>
 
@@ -924,14 +959,14 @@ function HeroMockup() {
                   <Music className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono-tight text-[8px] uppercase tracking-[0.2em] text-white/40">
+                  <div className="font-mono-tight text-[8px] uppercase tracking-[0.2em] text-white/60">
                     Now playing
                   </div>
                   <div className="truncate text-[12px] font-bold">
                     Daft Punk — Digital Love
                   </div>
                 </div>
-                <div className="font-mono-tight text-[9px] tabular-nums text-white/45">
+                <div className="font-mono-tight text-[9px] tabular-nums text-white/65">
                   1:45 / 4:58
                 </div>
               </div>
@@ -949,7 +984,7 @@ function HeroMockup() {
             <motion.div
               {...floatAnim(6)}
               style={{ transform: 'translateZ(15px)' }}
-              className="absolute bottom-[100px] right-5 flex h-14 w-20 items-center justify-center rounded-lg border border-dashed border-white/20 font-mono-tight text-[8px] uppercase tracking-[0.22em] text-white/30"
+              className="absolute bottom-[100px] right-5 flex h-14 w-20 items-center justify-center rounded-lg border border-dashed border-white/20 font-mono-tight text-[8px] uppercase tracking-[0.22em] text-white/55"
             >
               Drop
             </motion.div>
@@ -983,7 +1018,7 @@ function HeroMockup() {
         transition={{ delay: 1.2, duration: 0.6 }}
         className="absolute -bottom-5 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-black/80 px-4 py-2 font-mono-tight text-[10px] uppercase tracking-[0.22em] backdrop-blur-md"
       >
-        <span className="text-white/40">try it →</span>{' '}
+        <span className="text-white/60">try it →</span>{' '}
         <span className="text-[var(--lime)]">click anywhere</span>
       </motion.div>
     </div>
@@ -1044,7 +1079,7 @@ function Stats() {
             <div className="font-display text-4xl font-black leading-none tracking-tight sm:text-5xl md:text-6xl">
               {s.n}
             </div>
-            <div className="mt-2 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/45">
+            <div className="mt-2 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/65">
               {s.label}
             </div>
           </motion.div>
@@ -1138,14 +1173,14 @@ function CanvasShowcase() {
       <div className="mx-auto max-w-[1440px]">
         <header className="mb-10 flex flex-col items-start gap-6 sm:mb-14 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
+            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/65">
               <span className="h-1 w-6 bg-[var(--lime)]" />
               See it move / Live demo
             </div>
             <h2 className="font-display max-w-3xl text-[12vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
               NOT A SCREENSHOT.
               <br />
-              <span className="text-white/30">A REAL DEMO.</span>
+              <span className="text-white/55">A REAL DEMO.</span>
             </h2>
           </div>
           <p className="font-body max-w-sm text-[14px] leading-relaxed text-white/55 sm:text-[15px]">
@@ -1182,11 +1217,11 @@ function CanvasShowcase() {
                       <t.icon
                         className={[
                           'h-4 w-4 flex-shrink-0 transition-colors',
-                          tab === t.id ? 'text-[var(--lime)]' : 'text-white/40',
+                          tab === t.id ? 'text-[var(--lime)]' : 'text-white/60',
                         ].join(' ')}
                       />
                       <div className="min-w-0">
-                        <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/35">
+                        <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/55">
                           {String(i + 1).padStart(2, '0')}
                         </div>
                         <div className="font-display truncate text-lg font-black leading-none tracking-tight sm:text-2xl">
@@ -1271,11 +1306,11 @@ function DemoCanvas({ tab }) {
       <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/40 px-4 py-2">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-[var(--lime)] shadow-[0_0_8px_var(--lime)]" />
-          <span className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/45">
+          <span className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/65">
             editor.persn.me / canvas
           </span>
         </div>
-        <div className="flex items-center gap-2 font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/30">
+        <div className="flex items-center gap-2 font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/55">
           <Plus className="h-3 w-3" />
           Widget
           <span className="mx-1 h-3 w-px bg-white/10" />
@@ -1336,14 +1371,14 @@ function DragDemo() {
         <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[var(--discord)] to-[var(--magenta)]" />
         <div>
           <div className="text-[12px] font-bold">@akari_x</div>
-          <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/40">
+          <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/60">
             Tokyo
           </div>
         </div>
       </div>
 
       <div className="absolute right-14 top-14 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 backdrop-blur-md">
-        <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/40">
+        <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/60">
           Local
         </div>
         <div className="font-mono-tight text-base font-bold tabular-nums">
@@ -1391,7 +1426,7 @@ function DragDemo() {
               </div>
               <div>
                 <div className="text-[11px] font-bold">Now playing</div>
-                <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/45">
+                <div className="font-mono-tight text-[8px] uppercase tracking-[0.18em] text-white/65">
                   Daft Punk
                 </div>
               </div>
@@ -1416,7 +1451,7 @@ function DragDemo() {
       />
 
       {/* Bottom HUD */}
-      <div className="absolute inset-x-4 bottom-3 flex items-center justify-between font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/35">
+      <div className="absolute inset-x-4 bottom-3 flex items-center justify-between font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/55">
         <span>x: 412 · y: 198 · snap: center</span>
         <span className="flex items-center gap-1">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--lime)]" /> aligned
@@ -1460,7 +1495,7 @@ function MusicDemo() {
           </div>
           <div>
             <div className="font-display text-2xl font-black tracking-tight">AKARI_X</div>
-            <div className="font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/45">
+            <div className="font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/65">
               ↑ pulse syncs to track ↓
             </div>
           </div>
@@ -1473,14 +1508,14 @@ function MusicDemo() {
               <Music className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/40">
+              <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/60">
                 Now playing — YouTube
               </div>
               <div className="text-sm font-bold">Digital Love</div>
               <div className="text-[11px] text-white/55">Daft Punk · Discovery</div>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 font-mono-tight text-[9px] tabular-nums text-white/45">
+          <div className="mt-3 flex items-center gap-2 font-mono-tight text-[9px] tabular-nums text-white/65">
             <span>{formatProgress(progress, 298)}</span>
             <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-white/10">
               <div
@@ -1493,7 +1528,7 @@ function MusicDemo() {
         </div>
 
         {/* Source picker mock */}
-        <div className="flex items-center gap-2 font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/45">
+        <div className="flex items-center gap-2 font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/65">
           <span className="rounded-md border border-[var(--lime)]/40 bg-[var(--lime)]/10 px-2 py-1 text-[var(--lime)]">
             YouTube
           </span>
@@ -1543,7 +1578,7 @@ function EffectsDemo() {
             transition={{ delay: i * 0.08, duration: 0.4 }}
             className="rounded-xl border border-white/10 bg-white/[0.025] p-5 backdrop-blur-md"
           >
-            <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/40">
+            <div className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/60">
               FX {String(i + 1).padStart(2, '0')} · {s.label}
             </div>
             <div className="mt-2 font-display text-5xl font-black leading-none">
@@ -1598,11 +1633,11 @@ function UrlDemo() {
       className="absolute inset-0 flex items-center justify-center px-8"
     >
       <div className="w-full max-w-[520px]">
-        <div className="font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/40">
+        <div className="font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/60">
           Step 02 / Pick your handle
         </div>
         <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-4 backdrop-blur-md">
-          <span className="font-display text-3xl font-black text-white/40">persn.me/</span>
+          <span className="font-display text-3xl font-black text-white/60">persn.me/</span>
           <div className="font-display flex-1 text-3xl font-black tracking-tight text-white">
             <AnimatePresence mode="wait">
               <motion.span
@@ -1631,8 +1666,8 @@ function UrlDemo() {
             <Check className="h-3 w-3" />
             Available
           </span>
-          <span className="text-white/30">·</span>
-          <span className="text-white/40">Locked for 7 days after claim</span>
+          <span className="text-white/55">·</span>
+          <span className="text-white/60">Locked for 7 days after claim</span>
         </div>
       </div>
     </motion.div>
@@ -1706,7 +1741,7 @@ function ProfileWall() {
       <div className="mx-auto mb-10 max-w-[1440px] px-4 sm:mb-14 sm:px-6">
         <header className="flex flex-col items-start gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
+            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/65">
               <span className="h-1 w-6 bg-[var(--magenta)]" />
               The wall / community ·{' '}
               <span className="text-white/65">{profiles.length} live</span>
@@ -1749,7 +1784,7 @@ function ProfileWall() {
 
         {!loading && profiles.length === 0 && (
           <div className="mx-auto max-w-md rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01] p-10 text-center">
-            <p className="font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/30">
+            <p className="font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/55">
               no profiles yet — be the first
             </p>
           </div>
@@ -1799,10 +1834,12 @@ function CarouselCard({ profile, index }) {
       <div className="absolute inset-0">
         {profile.avatarUrl && /^https?:/.test(profile.avatarUrl) ? (
           <img
-            src={profile.avatarUrl}
+            src={rescaleAvatarUrl(profile.avatarUrl, 128)}
             alt=""
+            aria-hidden="true"
             className="h-full w-full scale-110 object-cover opacity-60 blur-md transition-all duration-700 group-hover/card:scale-100 group-hover/card:opacity-90 group-hover/card:blur-0"
             loading="lazy"
+            decoding="async"
           />
         ) : (
           <div
@@ -1831,7 +1868,7 @@ function CarouselCard({ profile, index }) {
           <span className="h-1 w-1 rounded-full bg-[var(--lime)] shadow-[0_0_6px_var(--lime)]" />
           live
         </div>
-        <div className="font-mono-tight text-[8px] uppercase tracking-[0.24em] text-white/45">
+        <div className="font-mono-tight text-[8px] uppercase tracking-[0.24em] text-white/65">
           #{String(index).padStart(3, '0')}
         </div>
       </div>
@@ -1845,10 +1882,13 @@ function CarouselCard({ profile, index }) {
           />
           {profile.avatarUrl && /^https?:/.test(profile.avatarUrl) ? (
             <img
-              src={profile.avatarUrl}
+              src={rescaleAvatarUrl(profile.avatarUrl, 256)}
               alt={profile.username}
+              width="80"
+              height="80"
               className="relative h-20 w-20 rounded-full object-cover ring-2 ring-white/15"
               loading="lazy"
+              decoding="async"
             />
           ) : (
             <div
@@ -1903,7 +1943,7 @@ function CarouselCard({ profile, index }) {
         )}
 
         <div className="mt-3 flex items-center justify-between border-t border-white/[0.08] pt-3">
-          <div className="flex items-center gap-1.5 font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/45">
+          <div className="flex items-center gap-1.5 font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/65">
             {profile.clickerScore > 0 ? (
               <>
                 <MousePointer2 className="h-3 w-3" />
@@ -1915,7 +1955,7 @@ function CarouselCard({ profile, index }) {
               <span>new profile</span>
             )}
           </div>
-          <ArrowUpRight className="h-4 w-4 text-white/45 transition-all group-hover/card:translate-x-0.5 group-hover/card:-translate-y-0.5 group-hover/card:text-white" />
+          <ArrowUpRight className="h-4 w-4 text-white/65 transition-all group-hover/card:translate-x-0.5 group-hover/card:-translate-y-0.5 group-hover/card:text-white" />
         </div>
       </div>
 
@@ -1982,14 +2022,14 @@ function Features() {
       <div className="mx-auto max-w-[1440px]">
         <header className="mb-12 flex flex-col items-start gap-6 sm:mb-16 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
+            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/65">
               <span className="h-1 w-6 bg-[var(--discord)]" />
               Features / 06 levers
             </div>
             <h2 className="font-display max-w-3xl text-[12vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
               EVERY KNOB.
               <br />
-              <span className="text-white/30">NONE OF THE BLOAT.</span>
+              <span className="text-white/55">NONE OF THE BLOAT.</span>
             </h2>
           </div>
           <p className="font-body max-w-sm text-[14px] leading-relaxed text-white/55 sm:text-[15px]">
@@ -2044,7 +2084,7 @@ function FeatureCard({ n, icon: Icon, title, desc, tag }) {
         }}
       />
       <div className="relative flex items-start justify-between" style={{ transform: 'translateZ(20px)' }}>
-        <span className="font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/30">
+        <span className="font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/55">
           {n} / {tag}
         </span>
         <div className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/[0.02] text-white/55 transition-all group-hover:border-[var(--discord)]/40 group-hover:bg-[var(--discord)]/10 group-hover:text-[var(--discord)]">
@@ -2100,20 +2140,25 @@ function HowItWorks() {
     <section id="how" className="relative border-b border-white/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
       <div className="mx-auto max-w-[1440px]">
         <header className="mb-12 max-w-2xl sm:mb-16">
-          <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
+          <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/65">
             <span className="h-1 w-6 bg-[var(--lime)]" />
             Workflow / 3 steps
           </div>
           <h2 className="font-display text-[12vw] font-black leading-[0.9] tracking-[-0.02em] sm:text-[10vw] lg:text-[6rem]">
             THIRTY SECONDS.
             <br />
-            <span className="text-white/30">THAT'S IT.</span>
+            <span className="text-white/55">THAT'S IT.</span>
           </h2>
         </header>
 
-        <ol className="relative grid gap-6 md:grid-cols-3">
-          {/* connector line */}
-          <div className="absolute left-7 right-7 top-[120px] hidden h-px bg-gradient-to-r from-[var(--discord)] via-[var(--magenta)] to-[var(--lime)] md:block" />
+        <div className="relative">
+          {/* connector line — sibling of the list, not a list child, so screen
+              readers don't trip on a non-li inside <ol>. */}
+          <div
+            aria-hidden="true"
+            className="absolute left-7 right-7 top-[120px] hidden h-px bg-gradient-to-r from-[var(--discord)] via-[var(--magenta)] to-[var(--lime)] md:block"
+          />
+          <ol className="relative grid gap-6 md:grid-cols-3">
           {steps.map((s, i) => (
             <motion.li
               key={s.n}
@@ -2140,7 +2185,8 @@ function HowItWorks() {
               )}
             </motion.li>
           ))}
-        </ol>
+          </ol>
+        </div>
       </div>
     </section>
   );
@@ -2180,7 +2226,7 @@ function Comparison() {
       <div className="mx-auto max-w-[1240px]">
         <header className="mb-10 flex flex-col items-start gap-6 sm:mb-14 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
+            <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/65">
               <span className="h-1 w-6 bg-[var(--magenta)]" />
               Receipts / Comparison
             </div>
@@ -2220,7 +2266,7 @@ function Comparison() {
                     {c.name}
                   </span>
                 </div>
-                <span className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/40">
+                <span className="font-mono-tight text-[9px] uppercase tracking-[0.22em] text-white/60">
                   {c.score.filter(Boolean).length}/{features.length}
                 </span>
               </div>
@@ -2229,7 +2275,7 @@ function Comparison() {
                   <li key={f} className="flex items-center justify-between gap-3 px-4 py-2.5">
                     <span className="font-body text-[13px] text-white/70">{f}</span>
                     {c.score[i] ? (
-                      <Check className={c.us ? 'h-4 w-4 flex-shrink-0 text-[var(--lime)]' : 'h-4 w-4 flex-shrink-0 text-white/40'} />
+                      <Check className={c.us ? 'h-4 w-4 flex-shrink-0 text-[var(--lime)]' : 'h-4 w-4 flex-shrink-0 text-white/60'} />
                     ) : (
                       <X className="h-4 w-4 flex-shrink-0 text-white/15" />
                     )}
@@ -2243,7 +2289,7 @@ function Comparison() {
         {/* Desktop: full comparison grid */}
         <div className="hidden overflow-hidden rounded-2xl border border-white/[0.08] md:block">
           <div className="grid grid-cols-[1.6fr_repeat(4,1fr)] border-b border-white/[0.08] bg-white/[0.03]">
-            <div className="px-5 py-4 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/40">
+            <div className="px-5 py-4 font-mono-tight text-[10px] uppercase tracking-[0.22em] text-white/60">
               Feature
             </div>
             {competitors.map((c) => (
@@ -2253,7 +2299,7 @@ function Comparison() {
                   'border-l border-white/[0.08] px-5 py-4 text-center font-mono-tight text-[10px] uppercase tracking-[0.22em]',
                   c.us
                     ? 'bg-[var(--discord)]/10 text-white'
-                    : 'text-white/40',
+                    : 'text-white/60',
                 ].join(' ')}
               >
                 {c.us && (
@@ -2282,7 +2328,7 @@ function Comparison() {
                 >
                   {c.score[i] ? (
                     <Check
-                      className={c.us ? 'h-4 w-4 text-[var(--lime)]' : 'h-4 w-4 text-white/40'}
+                      className={c.us ? 'h-4 w-4 text-[var(--lime)]' : 'h-4 w-4 text-white/60'}
                     />
                   ) : (
                     <X className="h-4 w-4 text-white/15" />
@@ -2333,7 +2379,7 @@ function Faq() {
     <section id="faq" className="relative border-b border-white/[0.06] px-4 py-20 sm:px-6 sm:py-24 lg:py-32">
       <div className="mx-auto grid max-w-[1240px] gap-10 sm:gap-14 lg:grid-cols-12">
         <div className="lg:col-span-4">
-          <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45">
+          <div className="mb-4 flex items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/65">
             <span className="h-1 w-6 bg-[var(--discord)]" />
             FAQ / Common questions
           </div>
@@ -2359,7 +2405,7 @@ function Faq() {
                   className="group flex w-full items-start justify-between gap-4 py-5 text-left transition sm:gap-6 sm:py-6"
                 >
                   <div className="flex items-start gap-3 sm:gap-4">
-                    <span className="font-mono-tight pt-1 text-[10px] uppercase tracking-[0.22em] text-white/30">
+                    <span className="font-mono-tight pt-1 text-[10px] uppercase tracking-[0.22em] text-white/55">
                       {String(i + 1).padStart(2, '0')}
                     </span>
                     <span className="font-display text-xl font-black tracking-tight transition-colors group-hover:text-white sm:text-2xl md:text-3xl">
@@ -2369,7 +2415,7 @@ function Faq() {
                   <span
                     className={[
                       'mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-white/10 transition-all',
-                      open === i ? 'rotate-180 border-[var(--lime)]/40 bg-[var(--lime)]/10 text-[var(--lime)]' : 'text-white/40 group-hover:border-white/25',
+                      open === i ? 'rotate-180 border-[var(--lime)]/40 bg-[var(--lime)]/10 text-[var(--lime)]' : 'text-white/60 group-hover:border-white/25',
                     ].join(' ')}
                   >
                     {open === i ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -2420,7 +2466,7 @@ function FinalCta({ user }) {
           />
 
           <div className="relative flex flex-col items-start gap-7 sm:gap-10">
-            <div className="flex flex-wrap items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/45 sm:gap-3">
+            <div className="flex flex-wrap items-center gap-2 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/65 sm:gap-3">
               <span className="flex items-center gap-1 rounded-full border border-[var(--lime)]/40 bg-[var(--lime)]/10 px-2.5 py-1 text-[var(--lime)]">
                 <span className="h-1 w-1 rounded-full bg-[var(--lime)] shadow-[0_0_6px_var(--lime)]" />
                 free forever
@@ -2513,7 +2559,7 @@ function Footer() {
       <div className="mx-auto grid max-w-[1440px] gap-10 sm:grid-cols-2 sm:gap-12 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
         <div className="space-y-5">
           <Wordmark />
-          <p className="font-body max-w-xs text-[13px] leading-relaxed text-white/45">
+          <p className="font-body max-w-xs text-[13px] leading-relaxed text-white/65">
             A freeform profile builder. Built in France for gamers, creators,
             and anyone tired of templates.
           </p>
@@ -2547,9 +2593,9 @@ function Footer() {
         </div>
         {cols.map((c) => (
           <div key={c.title}>
-            <h4 className="mb-4 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/40">
+            <h3 className="mb-4 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/55">
               {c.title}
-            </h4>
+            </h3>
             <ul className="space-y-2.5">
               {c.links.map(([label, href]) => (
                 <li key={label}>
@@ -2565,7 +2611,7 @@ function Footer() {
           </div>
         ))}
       </div>
-      <div className="mx-auto mt-10 flex max-w-[1440px] flex-col items-start justify-between gap-3 border-t border-white/[0.06] pt-6 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/30 sm:mt-14 sm:flex-row sm:items-center sm:gap-0">
+      <div className="mx-auto mt-10 flex max-w-[1440px] flex-col items-start justify-between gap-3 border-t border-white/[0.06] pt-6 font-mono-tight text-[10px] uppercase tracking-[0.24em] text-white/55 sm:mt-14 sm:flex-row sm:items-center sm:gap-0">
         <span>© 2026 persn.me · all rights reserved</span>
         <span className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--lime)] shadow-[0_0_6px_var(--lime)]" />

@@ -382,12 +382,24 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/auth/me', authenticate, async (req, res) => {
+// Returns the current session, or `{ user: null }` for anonymous callers.
+// We deliberately do NOT respond 401 for missing/invalid cookies here: the
+// landing page calls this on every load, and a 401 in the network panel
+// pollutes the browser console (Lighthouse flags this under "Browser errors
+// logged to console"). Real authentication failures on protected endpoints
+// still go through the `authenticate` middleware and return 401.
+app.get('/api/auth/me', async (req, res) => {
+  const token = req.cookies?.token;
+  if (!token) return res.json({ user: null });
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user || user.isBanned) return res.json({ user: null });
     res.json({ user: publicUser(user) });
   } catch (err) {
+    if (err?.name === 'JsonWebTokenError' || err?.name === 'TokenExpiredError') {
+      return res.json({ user: null });
+    }
     console.error('[me] Prisma/DB error:', err.code, err.message);
     if (err.code === 'P2021' || err.code === 'P2022') {
       return res.status(500).json({
@@ -767,7 +779,23 @@ if (IS_PROD) {
     // a string replace per-request, which is dirt cheap.
     const indexHtml = readFileSync(indexPath, 'utf8');
 
-    app.use(express.static(distPath, { index: false }));
+    // Hashed Vite output (filename includes a content hash) is safely
+    // cacheable for a year. Everything else (favicon, robots.txt, etc.) gets
+    // a short cache so updates ship fast.
+    app.use(
+      express.static(distPath, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (/[/\\]assets[/\\]/.test(filePath)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+          }
+        },
+      }),
+    );
 
     // SPA fallback. For root-level one-segment paths (potentially vanity
     // slugs) we try to look the profile up and rewrite meta tags so
