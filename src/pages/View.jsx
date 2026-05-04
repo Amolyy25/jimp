@@ -181,7 +181,15 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
     return () => document.removeEventListener('click', onClick, true);
   }, [slug]);
 
-  const ctx = { musicPlaying: playing, accent, accentCss, ownerId, slug, badges: profile.badges || [] };
+  const ctx = {
+    musicPlaying: playing,
+    accent,
+    accentCss,
+    ownerId,
+    slug,
+    badges: profile.badges || [],
+    viewsTotal: typeof profile.viewsTotal === 'number' ? profile.viewsTotal : null,
+  };
   const customCss = profile.theme?.customCss || '';
 
   return (
@@ -233,7 +241,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                  if (w.type === 'group') {
                     const children = visibleWidgets.filter(child => child.groupId === w.id);
                     return (
-                      <GroupLayerView 
+                      <GroupLayerView
                         key={w.id}
                         groupWidget={w}
                         childWidgets={children}
@@ -245,12 +253,13 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                         badges={profile.badges || []}
                         index={i}
                         visibleWidgets={visibleWidgets}
+                        viewsTotal={ctx.viewsTotal}
                       />
                     );
                  }
                  
                  return (
-                   <WidgetNodeView 
+                   <WidgetNodeView
                      key={w.id}
                      w={w}
                      i={i}
@@ -260,6 +269,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                      slug={slug}
                      playing={playing}
                      badges={profile.badges || []}
+                     viewsTotal={ctx.viewsTotal}
                    />
                  );
               });
@@ -281,7 +291,7 @@ function renderWidget(widget, ctx) {
   return <Component widget={widget} {...ctx} />;
 }
 
-function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, badges, index, visibleWidgets }) {
+function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, badges, index, visibleWidgets, viewsTotal }) {
   const auto = !!groupWidget.style?.autoSize;
   const enable3D = groupWidget.data?.enable3D;
 
@@ -335,22 +345,23 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
         zIndex: 20,
       }}
     >
-      <WidgetNodeView 
-        w={groupWidget} 
+      <WidgetNodeView
+        w={groupWidget}
         i={index}
-        accent={accent} 
-        accentCss={accentCss} 
+        accent={accent}
+        accentCss={accentCss}
         ownerId={ownerId}
         slug={slug}
         playing={playing}
         badges={badges}
         index={index}
+        viewsTotal={viewsTotal}
       />
       {childWidgets.map((w, j) => {
         if (w.type === 'group') {
           const subChildren = visibleWidgets.filter(sw => sw.groupId === w.id);
           return (
-            <GroupLayerView 
+            <GroupLayerView
               key={w.id}
               groupWidget={w}
               childWidgets={subChildren}
@@ -362,20 +373,22 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
               badges={badges}
               index={index + 1 + j}
               visibleWidgets={visibleWidgets}
+              viewsTotal={viewsTotal}
             />
           );
         }
         return (
-          <WidgetNodeView 
-            key={w.id} 
-            w={w} 
+          <WidgetNodeView
+            key={w.id}
+            w={w}
             i={index + 1 + j}
-            accent={accent} 
-            accentCss={accentCss} 
+            accent={accent}
+            accentCss={accentCss}
             ownerId={ownerId}
             slug={slug}
             playing={playing}
             badges={badges}
+            viewsTotal={viewsTotal}
           />
         );
       })}
@@ -383,7 +396,7 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
   );
 }
 
-function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badges }) {
+function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badges, viewsTotal }) {
   const Comp = WIDGET_REGISTRY[w.type]?.component;
   if (!Comp) return null;
 
@@ -440,6 +453,7 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badge
             ownerId={ownerId}
             slug={slug}
             badges={badges}
+            viewsTotal={viewsTotal}
           />
         </WidgetFrame>
       </motion.div>

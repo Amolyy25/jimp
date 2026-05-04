@@ -11,14 +11,25 @@
  *         clicks: { total, byTarget: [{target, kind, count}] } }
  *
  * Privacy notes (RGPD):
- *  - We never store the raw IP. Sessions are identified by an httpOnly
- *    cookie that holds a hash of (anonymous nonce + daily salt). The salt
- *    rotates every 24h so the same browser can't be fingerprinted across
+ *  - We never store the raw IP. Visitors are identified by an httpOnly
+ *    cookie nonce AND a hashed IP — both salted with a value that rotates
+ *    every 24h, so the same browser/network can't be fingerprinted across
  *    days from our records alone.
  *  - The `country` field, when present, comes from request headers
  *    (Cloudflare's `cf-ipcountry`); we never derive it from a stored IP.
- *  - View ingest is throttled to 1/profile/session — repeat visits from
- *    the same browser within the salt window count as one view.
+ *
+ * Anti-spam (a single visitor counts at most once per 24h):
+ *  - Layer 1 — fast in-memory cache keyed on (profileId, sessionId)
+ *    AND (profileId, ipHash). Catches reload spam in the hot path
+ *    without hitting the DB.
+ *  - Layer 2 — DB lookup against ViewEvent with the same OR-keys, run
+ *    on cache miss. Survives server restarts and multi-instance setups
+ *    so clearing cookies / opening incognito from the same network still
+ *    only counts once per 24h.
+ *  - Layer 3 — per-IP burst limiter (`viewBurst`): if the same IP
+ *    submits more than VIEW_BURST_LIMIT view ingests inside a short
+ *    window, every excess request is dropped before the DB lookup.
+ *    Hard ceiling against pathological spam (botnet of one).
  */
 
 import crypto from 'node:crypto';
@@ -26,6 +37,7 @@ import crypto from 'node:crypto';
 const SESSION_COOKIE = 'jv_sid';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const SALT_ROTATION_MS = 24 * 60 * 60 * 1000;
+const DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
 
 let saltRotated = { value: crypto.randomBytes(16).toString('hex'), at: Date.now() };
 function currentSalt() {
@@ -35,8 +47,8 @@ function currentSalt() {
   return saltRotated.value;
 }
 
-function hashSession(nonce) {
-  return crypto.createHash('sha256').update(`${nonce}:${currentSalt()}`).digest('hex');
+function hashWithSalt(input) {
+  return crypto.createHash('sha256').update(`${input}:${currentSalt()}`).digest('hex');
 }
 
 function getOrSetSessionNonce(req, res) {
@@ -54,11 +66,44 @@ function getOrSetSessionNonce(req, res) {
   return nonce;
 }
 
+/**
+ * Resolve the visitor's IP, preferring trusted-proxy headers in order.
+ * `req.ip` already respects Express's `trust proxy` setting when set.
+ */
+function clientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) {
+    const first = String(xff).split(',')[0].trim();
+    if (first) return first;
+  }
+  return req.headers['cf-connecting-ip'] || req.ip || req.socket?.remoteAddress || '';
+}
+
 const viewBuffer = [];
 const clickBuffer = [];
 const FLUSH_INTERVAL_MS = 5_000;
+
+// Layer 1: in-memory dedup. Keys are `${profileId}:S:${sessionId}` and
+// `${profileId}:I:${ipHash}`. Any hit means we've already counted this
+// visitor today.
 const dedupCache = new Map();
-const DEDUP_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+// Layer 3: per-IP burst limiter. Key is `${ipHash}` → { count, windowStart }.
+// VIEW_BURST_LIMIT requests per VIEW_BURST_WINDOW_MS — beyond that we drop.
+const VIEW_BURST_WINDOW_MS = 60_000;
+const VIEW_BURST_LIMIT = 30;
+const viewBurst = new Map();
+
+function isBursting(ipHash) {
+  const now = Date.now();
+  const slot = viewBurst.get(ipHash);
+  if (!slot || now - slot.windowStart > VIEW_BURST_WINDOW_MS) {
+    viewBurst.set(ipHash, { count: 1, windowStart: now });
+    return false;
+  }
+  slot.count += 1;
+  return slot.count > VIEW_BURST_LIMIT;
+}
 
 export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
   const ingestLimiter = opts.ingestLimiter || ((_req, _res, next) => next());
@@ -76,10 +121,15 @@ export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
         console.error('[analytics] click flush failed:', err.message);
       });
     }
+    const now = Date.now();
     if (dedupCache.size > 50000) {
-      const now = Date.now();
       for (const [k, ts] of dedupCache.entries()) {
-        if (now - ts > DEDUP_CACHE_TTL) dedupCache.delete(k);
+        if (now - ts > DEDUP_TTL_MS) dedupCache.delete(k);
+      }
+    }
+    if (viewBurst.size > 20000) {
+      for (const [k, slot] of viewBurst.entries()) {
+        if (now - slot.windowStart > VIEW_BURST_WINDOW_MS) viewBurst.delete(k);
       }
     }
   }, FLUSH_INTERVAL_MS);
@@ -96,18 +146,56 @@ export function registerAnalyticsRoutes(app, prisma, authenticate, opts = {}) {
       if (!profile) return res.json({ ok: false });
 
       const nonce = getOrSetSessionNonce(req, res);
-      const sessionId = hashSession(nonce);
-      const dedupKey = `${profile.id}:${sessionId}`;
-      const now = Date.now();
-      const lastSeen = dedupCache.get(dedupKey);
-      if (lastSeen && now - lastSeen < DEDUP_CACHE_TTL) {
-        return res.json({ ok: true, deduped: true });
+      const sessionId = hashWithSalt(nonce);
+      const ip = clientIp(req);
+      const ipHash = ip ? hashWithSalt(`ip:${ip}`) : null;
+
+      // Layer 3 — kill obvious burst spam early. Same IP > 30 view pings/min
+      // is dropped without even hitting the DB or counting against state.
+      if (ipHash && isBursting(ipHash)) {
+        return res.json({ ok: true, deduped: true, reason: 'burst' });
       }
 
-      dedupCache.set(dedupKey, now);
+      const sKey = `${profile.id}:S:${sessionId}`;
+      const iKey = ipHash ? `${profile.id}:I:${ipHash}` : null;
+      const now = Date.now();
+
+      // Layer 1 — in-memory cache hit on EITHER the cookie session or the
+      // hashed IP means we've already counted this visitor today.
+      const sHit = dedupCache.get(sKey);
+      const iHit = iKey ? dedupCache.get(iKey) : null;
+      if ((sHit && now - sHit < DEDUP_TTL_MS) || (iHit && now - iHit < DEDUP_TTL_MS)) {
+        return res.json({ ok: true, deduped: true, reason: 'cache' });
+      }
+
+      // Layer 2 — DB lookup. Catches the cases the in-memory cache can't
+      // (server restart, multi-instance, cleared cookies + same network).
+      const since = new Date(now - DEDUP_TTL_MS);
+      const existing = await prisma.viewEvent.findFirst({
+        where: {
+          profileId: profile.id,
+          createdAt: { gte: since },
+          OR: [
+            { sessionId },
+            ...(ipHash ? [{ ipHash }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        // Cache the hit so we don't re-query for this visitor again today.
+        dedupCache.set(sKey, now);
+        if (iKey) dedupCache.set(iKey, now);
+        return res.json({ ok: true, deduped: true, reason: 'db' });
+      }
+
+      // First time we see this visitor today — count them.
+      dedupCache.set(sKey, now);
+      if (iKey) dedupCache.set(iKey, now);
       viewBuffer.push({
         profileId: profile.id,
         sessionId,
+        ipHash,
         referer: clip(req.headers.referer, 200),
         country: clip(req.headers['cf-ipcountry'], 4),
         userAgent: clip(req.headers['user-agent'], 200),

@@ -104,6 +104,11 @@ model ViewEvent {
   profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   // Hashed session ID — anonymous, rotated salt, no IP.
   sessionId  String
+  // Hashed IP — sha256(ip + dailySalt). Lets us dedup spam from the same
+  // network even when the visitor clears cookies or opens incognito.
+  // Nullable for backfill compatibility with rows written before the column
+  // existed.
+  ipHash     String?
   referer    String?
   country    String?
   userAgent  String?
@@ -111,6 +116,7 @@ model ViewEvent {
 
   @@index([profileId, createdAt])
   @@index([profileId, sessionId])
+  @@index([profileId, ipHash])
 }
 
 model ClickEvent {

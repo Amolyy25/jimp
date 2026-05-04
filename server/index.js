@@ -436,25 +436,32 @@ app.get('/api/profiles/:slug', async (req, res) => {
 
   const now = Date.now();
   const cached = profileCache.get(normalizedSlug);
+
+  // Fast path — profile data is cacheable, but the visitor count never is.
+  // We always recompute it from the DB so a brand-new ViewEvent row is
+  // visible to the next reader within milliseconds, not 60s.
   if (cached && now - cached.timestamp < PROFILE_CACHE_TTL) {
-    return res.json(cached.data);
+    const viewsTotal = await prisma.viewEvent
+      .count({ where: { profileId: cached.profileId } })
+      .catch(() => 0);
+    return res.json({ ...cached.data, viewsTotal });
   }
 
-  const profile = await prisma.profile.findUnique({ 
+  const profile = await prisma.profile.findUnique({
     where: { slug: normalizedSlug },
     include: { user: { select: { isBanned: true, role: true } } }
   });
 
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
-  
+
   if (profile.isBanned || profile.user?.isBanned) {
-    profileCache.delete(normalizedSlug); 
+    profileCache.delete(normalizedSlug);
     return res.status(403).json({ error: 'Ce profil a été suspendu pour non-respect des conditions d\'utilisation.' });
   }
 
   // Determine special badges
   const badges = [];
-  
+
   // Early Badge: first 100 profiles ever created
   const countBefore = await prisma.profile.count({
     where: { createdAt: { lt: profile.createdAt } }
@@ -468,8 +475,20 @@ app.get('/api/profiles/:slug', async (req, res) => {
     badges.push({ id: 'staff', label: 'Staff' });
   }
 
-  const responseData = { ...profile.data, __ownerId: profile.userId, badges };
-  profileCache.set(normalizedSlug, { data: responseData, timestamp: now });
+  // Live visitor count — never cached. Count() on (profileId, createdAt)
+  // is indexed and cheap.
+  const viewsTotal = await prisma.viewEvent.count({
+    where: { profileId: profile.id },
+  });
+
+  // Cache the *static* parts of the response only. viewsTotal is excluded
+  // and recomputed on every subsequent request.
+  const cachedData = { ...profile.data, __ownerId: profile.userId, badges };
+  profileCache.set(normalizedSlug, {
+    data: cachedData,
+    timestamp: now,
+    profileId: profile.id,
+  });
 
   // Simple cache cleanup
   if (profileCache.size > 5000) {
@@ -479,7 +498,7 @@ app.get('/api/profiles/:slug', async (req, res) => {
     }
   }
 
-  res.json(responseData);
+  res.json({ ...cachedData, viewsTotal });
 });
 
 // Create or update the current user's profile.

@@ -1,24 +1,17 @@
-import { useEffect, useState } from 'react';
-
 /**
- * Purely cosmetic visitor counter.
- * We keep the count in localStorage (keyed per profile) and bump it once on
- * mount. This is client-side only — it only tracks the viewer's own visits
- * on their own device. It's here for the aesthetic, not for real analytics.
+ * Visitor counter widget.
+ *
+ * On a public profile (View page), `viewsTotal` is the real count of distinct
+ * anonymous sessions on this profile, computed server-side from the
+ * `ViewEvent` table — same source of truth as the owner's analytics page.
+ *
+ * In the editor preview where the prop is unavailable, we fall back to a
+ * client-side localStorage counter so the widget still feels alive while
+ * arranging the canvas.
  */
-export default function VisitorCounterWidget({ widget }) {
-  const key = `persn:visits:${widget.data.storageKey || 'default'}`;
-  const [count, setCount] = useState(() => readCount(key));
-
-  useEffect(() => {
-    const next = readCount(key) + 1;
-    try {
-      window.localStorage.setItem(key, String(next));
-    } catch {
-      /* ignore */
-    }
-    setCount(next);
-  }, [key]);
+export default function VisitorCounterWidget({ widget, viewsTotal }) {
+  const usingReal = typeof viewsTotal === 'number' && viewsTotal >= 0;
+  const count = usingReal ? viewsTotal : readLocal(widget);
 
   return (
     <div className="flex h-full w-full items-center justify-center px-3">
@@ -37,7 +30,8 @@ export default function VisitorCounterWidget({ widget }) {
   );
 }
 
-function readCount(key) {
+function readLocal(widget) {
+  const key = `persn:visits:${widget?.data?.storageKey || 'default'}`;
   try {
     const raw = window.localStorage.getItem(key);
     const n = raw == null ? 0 : parseInt(raw, 10);

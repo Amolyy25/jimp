@@ -695,19 +695,13 @@ function ClickerGameForm({ data, onUpdate }) {
   );
 }
 
-function VisitorCounterForm({ data, onUpdate }) {
+function VisitorCounterForm() {
   return (
     <div className="space-y-3">
-      <TextInput
-        label="Counter key"
-        value={data.storageKey}
-        onChange={(v) => onUpdate({ storageKey: v })}
-        placeholder="default"
-      />
       <p className="text-[11px] leading-relaxed text-white/40">
-        The counter is stored in the viewer's own browser (localStorage) — it
-        reflects their visits on their device, not a global count. Cosmetic on
-        purpose.
+        Shows the real number of distinct visitors on your profile — same source
+        as your analytics page. Each browser counts once per 24 h. Nothing to
+        configure.
       </p>
     </div>
   );
