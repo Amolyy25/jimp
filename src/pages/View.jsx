@@ -12,7 +12,7 @@ import WidgetFrame from '../components/widgets/WidgetFrame.jsx';
 import { useIsMobile } from '../hooks/useIsMobile.js';
 import { useMusic } from '../utils/MusicContext.jsx';
 import { getProfileBySlug, recordView, recordClick } from '../utils/api.js';
-import { resolveAccent } from '../utils/theme.js';
+import { getContrastTextColor, isLightColor, resolveAccent } from '../utils/theme.js';
 import GuestbookFloating from '../components/GuestbookFloating.jsx';
 import axios from 'axios';
 import { 
@@ -132,6 +132,7 @@ export default function View() {
               subtitle={profile.theme.splash.subtitle}
               accent={accentHex}
               accentCss={accentCss}
+              config={profile.theme.splash}
               onEnter={() => setEntered(true)}
               onDismiss={() => setSplashGone(true)}
             />
@@ -247,7 +248,11 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
       {!isMobile && (
         <>
           <ParticlesLayer variant={profile.theme?.particles} accent={accent} />
-          <CursorTrail variant={profile.theme?.cursorTrail} accent={accent} />
+          <CursorTrail
+            variant={profile.theme?.cursorTrail}
+            accent={accent}
+            ghostCount={profile.theme?.cursorTrailCount}
+          />
         </>
       )}
 
@@ -257,6 +262,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
             <WidgetFrame
               key={widget.id}
               widget={widget}
+              theme={profile.theme}
               mode="view"
               isMobile
               index={i}
@@ -290,6 +296,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                         index={i}
                         visibleWidgets={visibleWidgets}
                         viewsTotal={ctx.viewsTotal}
+                        theme={profile.theme}
                       />
                     );
                  }
@@ -306,6 +313,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
                      playing={playing}
                      badges={profile.badges || []}
                      viewsTotal={ctx.viewsTotal}
+                     theme={profile.theme}
                    />
                  );
               });
@@ -327,7 +335,7 @@ function renderWidget(widget, ctx) {
   return <Component widget={widget} {...ctx} />;
 }
 
-function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, badges, index, visibleWidgets, viewsTotal }) {
+function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId, slug, playing, badges, index, visibleWidgets, viewsTotal, theme }) {
   const auto = !!groupWidget.style?.autoSize;
   const enable3D = groupWidget.data?.enable3D;
 
@@ -392,6 +400,7 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
         badges={badges}
         index={index}
         viewsTotal={viewsTotal}
+        theme={theme}
       />
       {childWidgets.map((w, j) => {
         if (w.type === 'group') {
@@ -410,6 +419,7 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
               index={index + 1 + j}
               visibleWidgets={visibleWidgets}
               viewsTotal={viewsTotal}
+              theme={theme}
             />
           );
         }
@@ -425,6 +435,7 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
             playing={playing}
             badges={badges}
             viewsTotal={viewsTotal}
+            theme={theme}
           />
         );
       })}
@@ -432,17 +443,19 @@ function GroupLayerView({ groupWidget, childWidgets, accent, accentCss, ownerId,
   );
 }
 
-function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badges, viewsTotal }) {
+function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badges, viewsTotal, theme }) {
   const Comp = WIDGET_REGISTRY[w.type]?.component;
   if (!Comp) return null;
 
-  const animation = w.style?.animation || 'fade-up';
+  const animation = w.style?.animation ?? theme?.widgetEntryAnimation ?? 'fade-up';
   const variants = {
     none: { opacity: 0, y: 0, x: 0, scale: 1 },
     'fade-up': { opacity: 0, y: 12, x: 0, scale: 1 },
     'fade-in': { opacity: 0, y: 0, x: 0, scale: 1 },
     'zoom-in': { opacity: 0, y: 0, x: 0, scale: 0.92 },
     'slide-right': { opacity: 0, y: 0, x: -20, scale: 1 },
+    'slide-left': { opacity: 0, y: 0, x: 20, scale: 1 },
+    'flip-in': { opacity: 0, y: 14, x: 0, scale: 0.96, rotateX: -18 },
     bounce: { opacity: 0, y: 24, x: 0, scale: 0.85 },
   };
 
@@ -480,7 +493,7 @@ function WidgetNodeView({ w, i, accent, accentCss, ownerId, slug, playing, badge
         }}
         className="h-full w-full"
       >
-        <WidgetFrame widget={w} mode="view" index={i}>
+        <WidgetFrame widget={w} theme={theme} mode="view" index={i}>
           <Comp
             widget={w}
             musicPlaying={playing}
@@ -539,6 +552,8 @@ function ReportModal({ slug, accent, onClose }) {
   const [reason, setReason] = useState('');
   const [details, setDetails] = useState('');
   const [status, setStatus] = useState('idle'); // idle | loading | success | error
+  const accentTextColor = getContrastTextColor(accent);
+  const accentIsLight = isLightColor(accent);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -622,8 +637,12 @@ function ReportModal({ slug, accent, onClose }) {
                 <button
                   type="submit"
                   disabled={!reason || status === 'loading'}
-                  className="flex flex-[1.5] items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold text-white shadow-lg transition hover:brightness-110 disabled:opacity-50"
-                  style={{ background: accent }}
+                  className="flex flex-[1.5] items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold shadow-lg transition hover:brightness-110 disabled:opacity-50"
+                  style={{
+                    background: accent,
+                    color: accentTextColor,
+                    border: accentIsLight ? '1px solid rgba(17,17,17,0.08)' : 'none',
+                  }}
                 >
                   {status === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-3.5 w-3.5" /> Envoyer</>}
                 </button>

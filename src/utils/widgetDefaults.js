@@ -256,14 +256,28 @@ export function makeDefaultProfile() {
     theme: {
       accent: '#5865F2',
       pageBg: '#0a0a0a',
+      widgetEntryAnimation: 'fade-up',
+      widgetHover: 'lift',
+      widgetFloat: 'none',
+      widgetSurface: 'none',
+      widgetParticles: 'none',
+      widgetAccentBar: 'none',
+      widgetGlowIntensity: 0.35,
       cursor: 'default',      // 'default' | 'pointer' | 'crosshair' | 'none' | 'custom'
       cursorUrl: '',          // when cursor === 'custom'
-      cursorTrail: 'none',    // 'none' | 'glow' | 'stars' | 'neon'
+      cursorTrail: 'none',    // 'none' | 'glow' | 'echo' | 'stars' | 'neon' | 'comet' | 'ghost' | 'prism' | 'orbit'
+      cursorTrailCount: 6,    // used by 'ghost'
       particles: 'none',      // 'none' | 'snow' | 'stars' | 'dust' | 'confetti'
       splash: {
         enabled: false,
+        template: 'classic',
         text: 'Click to enter',
         subtitle: '',
+        badge: 'Enter profile',
+        hint: 'Click anywhere',
+        intensity: 60,
+        showGrid: true,
+        showFooter: true,
       },
     },
     background: {

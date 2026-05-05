@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Heart, UserPlus, UserCheck } from 'lucide-react';
 import { follow, unfollow, getFollowState, getMe } from '../utils/api.js';
+import { getContrastTextColor, isLightColor } from '../utils/theme.js';
 
 /**
  * Floating action pill rendered on /:slug.
@@ -17,6 +18,9 @@ export default function GuestbookFloating({ slug, accent }) {
   const [me, setMe] = useState(null);
   const [state, setState] = useState({ following: false, count: 0 });
   const [busy, setBusy] = useState(false);
+  const accentColor = accent || '#5865F2';
+  const accentTextColor = getContrastTextColor(accentColor);
+  const accentIsLight = isLightColor(accentColor);
 
   useEffect(() => {
     if (!slug) return;
@@ -56,7 +60,7 @@ export default function GuestbookFloating({ slug, accent }) {
         className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-3 py-1.5 text-[11px] font-semibold text-white/80 backdrop-blur-xl"
         title="Followers"
       >
-        <Heart className="h-3 w-3" style={{ color: accent || '#5865F2' }} />
+        <Heart className="h-3 w-3" style={{ color: accentColor }} />
         <span className="tabular-nums">{state.count}</span>
       </div>
       <button
@@ -69,10 +73,13 @@ export default function GuestbookFloating({ slug, accent }) {
           toggle();
         }}
         disabled={busy}
-        className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-bold text-white shadow-lg backdrop-blur-xl transition disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-bold shadow-lg backdrop-blur-xl transition disabled:opacity-50"
         style={{
-          background: state.following ? 'rgba(255,255,255,0.08)' : (accent || '#5865F2'),
-          border: state.following ? '1px solid rgba(255,255,255,0.12)' : 'none',
+          background: state.following ? 'rgba(255,255,255,0.08)' : accentColor,
+          border: state.following
+            ? '1px solid rgba(255,255,255,0.12)'
+            : (accentIsLight ? '1px solid rgba(17,17,17,0.08)' : 'none'),
+          color: state.following ? '#FFFFFF' : accentTextColor,
         }}
       >
         {state.following ? <UserCheck className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}

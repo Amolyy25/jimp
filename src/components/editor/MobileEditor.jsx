@@ -141,6 +141,7 @@ export default function MobileEditor({
               <WidgetCardMobile
                 key={widget.id}
                 widget={widget}
+                theme={profile.theme}
                 index={i}
                 isFirst={arrayIndex === 0}
                 isLast={arrayIndex === profile.widgets.length - 1}
@@ -404,6 +405,7 @@ function MenuButton({ icon: Icon, label, onClick, danger }) {
 
 function WidgetCardMobile({
   widget,
+  theme,
   index,
   isFirst,
   isLast,
@@ -448,7 +450,7 @@ function WidgetCardMobile({
         onClick={onSelect}
         className="block w-full text-left transition active:scale-[0.99]"
       >
-        <WidgetFrame widget={widget} mode="view" isMobile index={index}>
+        <WidgetFrame widget={widget} theme={theme} mode="view" isMobile index={index}>
           {Component ? <Component widget={widget} accent="#5865F2" /> : null}
         </WidgetFrame>
       </button>

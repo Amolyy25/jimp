@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Fullscreen background layer used on both /view and the editor canvas.
@@ -80,6 +80,12 @@ export default function BackgroundLayer({ background, viewportFixed = false }) {
  * correctly inside the desktop editor canvas where the BG is `absolute`.
  */
 function YoutubeCover({ youtubeId }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(false);
+  }, [youtubeId]);
+
   // We use 100% of the parent and let CSS aspect-ratio do the cover math via
   // `min-w` / `min-h` based on the viewport. To support both cases (fixed to
   // viewport, or scoped to a smaller parent), we set the iframe to fill the
@@ -87,17 +93,21 @@ function YoutubeCover({ youtubeId }) {
   return (
     <iframe
       title="background"
-      src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${youtubeId}&modestbranding=1&playsinline=1&rel=0&showinfo=0`}
+      src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0&loop=1&playlist=${youtubeId}&modestbranding=1&playsinline=1&rel=0&showinfo=0`}
       allow="autoplay; encrypted-media"
       referrerPolicy="origin"
       frameBorder="0"
-      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      onLoad={() => {
+        window.setTimeout(() => setReady(true), 700);
+      }}
+      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-500"
       style={{
         // Pick the larger of the viewport-derived covers so the 16:9 iframe
         // always fills the screen on both landscape and portrait. The 130%
         // bonus crops out YouTube's own UI bands at the iframe edges.
         width: 'max(130vw, calc(130vh * 16 / 9))',
         height: 'max(130vh, calc(130vw * 9 / 16))',
+        opacity: ready ? 1 : 0,
       }}
     />
   );

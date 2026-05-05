@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SOCIALS } from '../../utils/socials.jsx';
+import { getContrastTextColor, isLightColor } from '../../utils/theme.js';
 
 /**
  * Row of social icons.
@@ -107,6 +108,9 @@ export default function SocialsWidget({ widget, accent }) {
  * where the social pill lives on the canvas.
  */
 function CopyToast({ handle, accentColor }) {
+  const foreground = getContrastTextColor(accentColor);
+  const lightAccent = isLightColor(accentColor);
+
   return (
     <div
       role="status"
@@ -114,8 +118,12 @@ function CopyToast({ handle, accentColor }) {
       className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4"
     >
       <div
-        className="pointer-events-auto flex max-w-[90vw] items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white shadow-2xl backdrop-blur-md"
-        style={{ backgroundColor: accentColor }}
+        className="pointer-events-auto flex max-w-[90vw] items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold shadow-2xl backdrop-blur-md"
+        style={{
+          backgroundColor: accentColor,
+          color: foreground,
+          border: lightAccent ? '1px solid rgba(17,17,17,0.08)' : '1px solid rgba(255,255,255,0.12)',
+        }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
           <path d="M5 12l5 5L20 7" />

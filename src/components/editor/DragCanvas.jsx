@@ -287,6 +287,7 @@ export default function DragCanvas({
                       startDrag={startDrag}
                       accent={accent}
                       accentCss={accentCss}
+                      theme={profile.theme}
                       index={i}
                       visibleWidgets={visibleWidgets}
                     />
@@ -301,6 +302,7 @@ export default function DragCanvas({
                    startDrag={startDrag}
                    accent={accent}
                    accentCss={accentCss}
+                   theme={profile.theme}
                    index={i}
                  />
                );
@@ -321,7 +323,7 @@ export default function DragCanvas({
   );
 }
 
-function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startDrag, accent, accentCss, index, visibleWidgets }) {
+function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startDrag, accent, accentCss, theme, index, visibleWidgets }) {
   const auto = !!groupWidget.style?.autoSize;
   const enable3D = groupWidget.data?.enable3D;
 
@@ -384,6 +386,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
         startDrag={startDrag}
         accent={accent}
         accentCss={accentCss}
+        theme={theme}
         index={index}
       />
       {childWidgets.map((w, j) => {
@@ -399,6 +402,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
               startDrag={startDrag}
               accent={accent}
               accentCss={accentCss}
+              theme={theme}
               index={index + 1 + j}
               visibleWidgets={visibleWidgets}
             />
@@ -412,6 +416,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
             startDrag={startDrag} 
             accent={accent} 
             accentCss={accentCss} 
+            theme={theme}
             index={index + 1 + j}
           />
         );
@@ -420,7 +425,7 @@ function GroupLayer({ groupWidget, childWidgets, isSelected, selectedIds, startD
   );
 }
 
-function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, index }) {
+function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, theme, index }) {
   const auto = !!widget.style?.autoSize && widget.type !== 'group';
   const wrapperStyle = auto
     ? {
@@ -457,7 +462,7 @@ function WidgetNode({ widget, isSelected, startDrag, accent, accentCss, index })
       )}
 
       <div className="pointer-events-none h-full w-full">
-        <WidgetFrame widget={widget} mode="edit" index={index}>
+        <WidgetFrame widget={widget} theme={theme} mode="edit" index={index}>
           <WidgetPreview widget={widget} accent={accent} accentCss={accentCss} />
         </WidgetFrame>
       </div>

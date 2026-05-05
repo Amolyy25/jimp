@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MusicContext } from '../utils/MusicContext.jsx';
 import { detectMusicSource, spotifyEmbedUrl, youtubeSearchUrl, spotifySearchUrl } from '../utils/music.js';
+import { isLightColor } from '../utils/theme.js';
 
 /**
  * Multi-source music player.
@@ -417,6 +418,8 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
 /* -------------------------------------------------------------------------- */
 
 function ControlPill({ playing, needsGesture, volume, onVolumeChange, onToggle, kind, accent }) {
+  const accentIsLight = isLightColor(accent);
+
   return (
     <div className="pointer-events-auto fixed top-5 right-5 z-40 flex flex-col items-end gap-3">
       {needsGesture && !playing && (
@@ -425,7 +428,10 @@ function ControlPill({ playing, needsGesture, volume, onVolumeChange, onToggle, 
           onClick={onToggle}
           className="group flex items-center gap-2 rounded-full border border-white/10 bg-ink-800/90 px-5 py-2.5 text-xs font-semibold text-white backdrop-blur-xl transition-all hover:bg-ink-700 hover:scale-105 active:scale-95 shadow-xl"
         >
-          <div className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-ink-900" style={{ color: accent }}>
+          <div
+            className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-ink-900"
+            style={{ color: accentIsLight ? '#111111' : accent }}
+          >
             <PlayIcon />
           </div>
           Play music
@@ -440,7 +446,7 @@ function ControlPill({ playing, needsGesture, volume, onVolumeChange, onToggle, 
             className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300 ${
               playing ? 'bg-white text-ink-900' : 'bg-white/10 text-white hover:bg-white/20'
             } active:scale-90`}
-            style={playing ? { backgroundColor: 'white', color: accent } : {}}
+            style={playing ? { backgroundColor: 'white', color: accentIsLight ? '#111111' : accent } : {}}
             aria-label={playing ? 'Pause' : 'Play'}
           >
             {playing ? <PauseIcon /> : <PlayIcon />}
@@ -459,7 +465,7 @@ function ControlPill({ playing, needsGesture, volume, onVolumeChange, onToggle, 
                 style={{
                   width: '100px',
                   borderRadius: '2px',
-                  accentColor: accent,
+                  accentColor: accentIsLight ? '#111111' : accent,
                 }}
                 aria-label="Volume"
               />

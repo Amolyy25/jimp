@@ -175,6 +175,101 @@ select option {
   to { background-position: 200% center; }
 }
 
+@keyframes widget-float-bob {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes widget-float-drift {
+  0%, 100% { transform: translate3d(0px, 0px, 0px); }
+  25% { transform: translate3d(4px, -6px, 0px); }
+  50% { transform: translate3d(-3px, -10px, 0px); }
+  75% { transform: translate3d(-5px, -3px, 0px); }
+}
+
+@keyframes widget-sheen {
+  0% { transform: translateX(-45%) translateY(0); opacity: 0.15; }
+  50% { transform: translateX(25%) translateY(8%); opacity: 0.35; }
+  100% { transform: translateX(-45%) translateY(0); opacity: 0.15; }
+}
+
+@keyframes widget-scan {
+  0% { transform: translateY(-2%); }
+  100% { transform: translateY(2%); }
+}
+
+@keyframes widget-sparkle {
+  0%, 100% { transform: scale(0.7); opacity: 0.15; }
+  50% { transform: scale(1.25); opacity: 0.9; }
+}
+
+@keyframes widget-orb-float {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.12; }
+  50% { transform: translate3d(0, -12px, 0); opacity: 0.4; }
+}
+
+.persn-widget-hover-lift:hover {
+  transform: translateY(-6px) scale(1.01);
+}
+
+.persn-widget-hover-tilt:hover {
+  transform: perspective(900px) rotateX(7deg) rotateY(-7deg) translateY(-4px);
+}
+
+.persn-widget-hover-pulse:hover {
+  transform: scale(1.03);
+}
+
+.persn-widget-hover-glow:hover {
+  filter: brightness(1.05);
+}
+
+.persn-widget-float-bob {
+  animation: widget-float-bob 5.2s ease-in-out infinite;
+}
+
+.persn-widget-float-drift {
+  animation: widget-float-drift 7.5s ease-in-out infinite;
+}
+
+.persn-widget-surface-aurora {
+  animation: widget-sheen 10s ease-in-out infinite;
+}
+
+.persn-widget-surface-scanlines {
+  animation: widget-scan 3.8s linear infinite alternate;
+  opacity: 0.1;
+}
+
+.persn-widget-surface-glass {
+  animation: widget-sheen 8.5s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+.persn-widget-particle-sparkle,
+.persn-widget-particle-orb {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.persn-widget-particle-sparkle {
+  width: 4px;
+  height: 4px;
+  animation-name: widget-sparkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.persn-widget-particle-orb {
+  width: 12px;
+  height: 12px;
+  filter: blur(2px);
+  animation-name: widget-orb-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
 .glitch-text {
   position: relative;
 }

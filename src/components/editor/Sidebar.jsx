@@ -277,6 +277,94 @@ function ThemeSection({ theme, onChange }) {
 
       <div className="border-t border-white/5" />
 
+      <h3 className="eyebrow">Widgets globaux</h3>
+      <TextInput
+        label="Widget entry animation"
+        value={theme?.widgetEntryAnimation || 'fade-up'}
+        onChange={(v) => onChange({ widgetEntryAnimation: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'fade-up', label: 'Fade Up' },
+          { value: 'fade-in', label: 'Fade In' },
+          { value: 'zoom-in', label: 'Zoom In' },
+          { value: 'slide-right', label: 'Slide Right' },
+          { value: 'slide-left', label: 'Slide Left' },
+          { value: 'flip-in', label: 'Flip In' },
+          { value: 'bounce', label: 'Bounce' },
+        ]}
+      />
+      <TextInput
+        label="Widget hover effect"
+        value={theme?.widgetHover || 'lift'}
+        onChange={(v) => onChange({ widgetHover: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'lift', label: 'Lift' },
+          { value: 'tilt', label: 'Tilt' },
+          { value: 'pulse', label: 'Pulse' },
+          { value: 'glow', label: 'Glow' },
+        ]}
+      />
+      <TextInput
+        label="Widget float motion"
+        value={theme?.widgetFloat || 'none'}
+        onChange={(v) => onChange({ widgetFloat: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'bob', label: 'Bob' },
+          { value: 'drift', label: 'Drift' },
+        ]}
+      />
+      <TextInput
+        label="Widget surface overlay"
+        value={theme?.widgetSurface || 'none'}
+        onChange={(v) => onChange({ widgetSurface: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'aurora', label: 'Aurora' },
+          { value: 'scanlines', label: 'Scanlines' },
+          { value: 'spotlight', label: 'Spotlight' },
+          { value: 'glass', label: 'Glass glare' },
+        ]}
+      />
+      <TextInput
+        label="Widget particles"
+        value={theme?.widgetParticles || 'none'}
+        onChange={(v) => onChange({ widgetParticles: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'sparkles', label: 'Sparkles' },
+          { value: 'orbs', label: 'Orbs' },
+        ]}
+      />
+      <TextInput
+        label="Widget accent bar"
+        value={theme?.widgetAccentBar || 'none'}
+        onChange={(v) => onChange({ widgetAccentBar: v })}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'top', label: 'Top' },
+          { value: 'bottom', label: 'Bottom' },
+          { value: 'left', label: 'Left' },
+          { value: 'right', label: 'Right' },
+        ]}
+      />
+      <SliderInput
+        label="Widget glow intensity"
+        min={0}
+        max={1}
+        step={0.01}
+        value={theme?.widgetGlowIntensity ?? 0.35}
+        onChange={(v) => onChange({ widgetGlowIntensity: v })}
+        format={(v) => `${Math.round(v * 100)}%`}
+      />
+      <p className="text-[11px] leading-relaxed text-white/40">
+        These settings act like a global art direction layer on top of your
+        widget cards and also show up in the editor preview.
+      </p>
+
+      <div className="border-t border-white/5" />
+
       <TextInput
         label="Cursor"
         value={cursor}
@@ -322,10 +410,25 @@ function ThemeSection({ theme, onChange }) {
         options={[
           { value: 'none', label: 'None' },
           { value: 'glow', label: 'Glow (accent)' },
+          { value: 'echo', label: 'Echo (pulse rings)' },
           { value: 'stars', label: 'Stars (sparkle)' },
           { value: 'neon', label: 'Neon (laser line)' },
+          { value: 'comet', label: 'Comet (bright tail)' },
+          { value: 'ghost', label: 'Ghost (cursor clones)' },
+          { value: 'prism', label: 'Prism (RGB split)' },
+          { value: 'orbit', label: 'Orbit (satellites)' },
         ]}
       />
+      {theme?.cursorTrail === 'ghost' && (
+        <SliderInput
+          label="Ghost clone count"
+          min={2}
+          max={20}
+          step={1}
+          value={theme?.cursorTrailCount ?? 6}
+          onChange={(v) => onChange({ cursorTrailCount: Math.round(v) })}
+        />
+      )}
 
       <TextInput
         label="Particles"
@@ -366,12 +469,35 @@ function ThemeSection({ theme, onChange }) {
         }
       />
       <TextInput
+        label="Splash template"
+        value={theme?.splash?.template || 'classic'}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), template: v } })
+        }
+        options={[
+          { value: 'classic', label: 'Classic' },
+          { value: 'terminal', label: 'Terminal' },
+          { value: 'spotlight', label: 'Spotlight' },
+          { value: 'arcade', label: 'Arcade' },
+        ]}
+      />
+      <TextInput
         label="Splash text"
         value={theme?.splash?.text || ''}
         onChange={(v) =>
           onChange({ splash: { ...(theme?.splash || {}), text: v } })
         }
         placeholder="Click to enter"
+        maxLength={40}
+        filter
+      />
+      <TextInput
+        label="Splash badge"
+        value={theme?.splash?.badge || ''}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), badge: v } })
+        }
+        placeholder="Enter profile"
         maxLength={40}
         filter
       />
@@ -384,6 +510,43 @@ function ThemeSection({ theme, onChange }) {
         placeholder="A tiny tagline, if you like"
         maxLength={80}
         filter
+      />
+      <TextInput
+        label="Splash hint"
+        value={theme?.splash?.hint || ''}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), hint: v } })
+        }
+        placeholder="Click anywhere"
+        maxLength={40}
+        filter
+      />
+      <SliderInput
+        label="Splash intensity"
+        min={0}
+        max={100}
+        step={1}
+        value={theme?.splash?.intensity ?? 60}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), intensity: Math.round(v) } })
+        }
+        unit="%"
+      />
+      <ToggleRow
+        title="Show splash grid"
+        subtitle="Adds a subtle grid texture behind the splash content"
+        checked={theme?.splash?.showGrid ?? true}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), showGrid: v } })
+        }
+      />
+      <ToggleRow
+        title="Show splash footer"
+        subtitle="Display the tiny persn.me footer on the gate"
+        checked={theme?.splash?.showFooter ?? true}
+        onChange={(v) =>
+          onChange({ splash: { ...(theme?.splash || {}), showFooter: v } })
+        }
       />
 
       <div className="border-t border-white/5" />

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SOCIALS } from '../../utils/socials.jsx';
 import { nanoid } from '../../utils/id.js';
 import TextInput from './controls/TextInput.jsx';
+import SliderInput from './controls/SliderInput.jsx';
 
 /**
  * Per-widget content editor.
@@ -216,6 +217,17 @@ function AvatarForm({ data, onUpdate }) {
           { value: 'glitch', label: 'Glitch' },
         ]}
       />
+      {data.textEffect === 'matrix' && (
+        <SliderInput
+          label="Matrix loop delay"
+          min={3}
+          max={30}
+          step={1}
+          unit="s"
+          value={data.matrixLoopDelay ?? 10}
+          onChange={(v) => onUpdate({ matrixLoopDelay: Math.max(3, Math.round(v)) })}
+        />
+      )}
 
       <ToggleRow
         title="Discord Nitro"
@@ -883,4 +895,3 @@ function ToggleRow({ title, subtitle, checked, onChange }) {
     </label>
   );
 }
-

@@ -36,6 +36,8 @@ let fontsReady = null;
 let DISPLAY_FONT = 'sans-serif';
 let BODY_FONT = 'sans-serif';
 let MONO_FONT = 'monospace';
+let UNICODE_FONT = 'sans-serif';
+let ARABIC_FONT = 'sans-serif';
 
 const FONT_MIRRORS = {
   bold: [
@@ -51,6 +53,18 @@ const FONT_MIRRORS = {
   mono: [
     'https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.18/files/jetbrains-mono-latin-700-normal.woff',
     'https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.18/files/jetbrains-mono-latin-500-normal.woff',
+  ],
+  unicodeRegular: [
+    'https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf',
+  ],
+  unicodeBold: [
+    'https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf',
+  ],
+  arabicRegular: [
+    'https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf',
+  ],
+  arabicBold: [
+    'https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Bold.ttf',
   ],
 };
 
@@ -69,10 +83,14 @@ async function fetchFirst(urls) {
 async function ensureFonts() {
   if (fontsReady) return fontsReady;
   fontsReady = (async () => {
-    const [bold, regular, mono] = await Promise.all([
+    const [bold, regular, mono, unicodeRegular, unicodeBold, arabicRegular, arabicBold] = await Promise.all([
       fetchFirst(FONT_MIRRORS.bold),
       fetchFirst(FONT_MIRRORS.regular),
       fetchFirst(FONT_MIRRORS.mono),
+      fetchFirst(FONT_MIRRORS.unicodeRegular),
+      fetchFirst(FONT_MIRRORS.unicodeBold),
+      fetchFirst(FONT_MIRRORS.arabicRegular),
+      fetchFirst(FONT_MIRRORS.arabicBold),
     ]);
     if (bold) {
       try {
@@ -96,6 +114,24 @@ async function ensureFonts() {
         MONO_FONT = 'PersnMono';
       } catch (err) {
         console.warn('[og] mono font register failed:', err.message);
+      }
+    }
+    if (unicodeRegular || unicodeBold) {
+      try {
+        if (unicodeRegular) GlobalFonts.register(unicodeRegular, 'PersnUnicode');
+        if (unicodeBold) GlobalFonts.register(unicodeBold, 'PersnUnicode');
+        UNICODE_FONT = 'PersnUnicode';
+      } catch (err) {
+        console.warn('[og] unicode font register failed:', err.message);
+      }
+    }
+    if (arabicRegular || arabicBold) {
+      try {
+        if (arabicRegular) GlobalFonts.register(arabicRegular, 'PersnArabic');
+        if (arabicBold) GlobalFonts.register(arabicBold, 'PersnArabic');
+        ARABIC_FONT = 'PersnArabic';
+      } catch (err) {
+        console.warn('[og] arabic font register failed:', err.message);
       }
     }
     if (!bold && !regular) {
@@ -154,8 +190,8 @@ export async function renderProfileOg(slug, profileData) {
   const widgets = Array.isArray(profileData.widgets) ? profileData.widgets : [];
   const avatarWidget = widgets.find((w) => w?.type === 'avatar');
   const data = avatarWidget?.data || {};
-  const username = (data.username || slug || 'user').trim();
-  const bio = (data.bio || '').trim();
+  const username = normalizeOgText((data.username || slug || 'user').trim());
+  const bio = normalizeOgText((data.bio || '').trim());
   const avatarUrl = data.avatarUrl || '';
 
   // De-duped, friendly list of features the profile uses.
@@ -304,7 +340,7 @@ export async function renderProfileOg(slug, profileData) {
     ctx.fillStyle = grad;
     ctx.fillRect(AV_X, AV_Y, AV_SIZE, AV_SIZE);
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${Math.round(AV_SIZE * 0.42)}px ${DISPLAY_FONT}, sans-serif`;
+    ctx.font = `900 ${Math.round(AV_SIZE * 0.42)}px ${fontStack('display')}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -334,8 +370,8 @@ export async function renderProfileOg(slug, profileData) {
 
   // @username — display-weight, gradient-tinted toward the accent.
   const handleText = `@${username}`;
-  const handleSize = fitFontSize(ctx, handleText, TXT_W, 110, 56, DISPLAY_FONT, '900');
-  ctx.font = `900 ${handleSize}px ${DISPLAY_FONT}, sans-serif`;
+  const handleSize = fitFontSize(ctx, handleText, TXT_W, 110, 56, fontStack('display'), '900');
+  ctx.font = `900 ${handleSize}px ${fontStack('display')}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
@@ -350,7 +386,7 @@ export async function renderProfileOg(slug, profileData) {
   let cursorY = handleY + 16;
   if (bio) {
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = `500 26px ${BODY_FONT}, sans-serif`;
+    ctx.font = `500 26px ${fontStack('body')}`;
     cursorY = wrapText(ctx, bio, TXT_X, cursorY + 28, TXT_W, 34, 2);
   } else {
     cursorY = handleY + 32;
@@ -367,7 +403,7 @@ export async function renderProfileOg(slug, profileData) {
   for (const type of featuresShown) {
     const meta = WIDGET_LABELS[type];
     if (!meta) continue;
-    ctx.font = `700 16px ${MONO_FONT}, monospace`;
+    ctx.font = `700 16px ${fontStack('mono')}`;
     const labelW = ctx.measureText(meta.label.toUpperCase()).width;
     const pillW = labelW + PILL_PAD_X * 2 + 16; // +16 for the dot
     if (pillX + pillW > WIDTH - M) break;
@@ -389,7 +425,7 @@ export async function renderProfileOg(slug, profileData) {
 
     // Label
     ctx.fillStyle = meta.tint;
-    ctx.font = `700 16px ${MONO_FONT}, monospace`;
+    ctx.font = `700 16px ${fontStack('mono')}`;
     ctx.textBaseline = 'middle';
     ctx.fillText(meta.label.toUpperCase(), pillX + PILL_PAD_X + 16, PILL_TOP + PILL_H / 2 + 1);
 
@@ -398,7 +434,7 @@ export async function renderProfileOg(slug, profileData) {
   // If there were more, append a "+N" pill in white.
   if (featureTypes.length > featuresShown.length) {
     const more = `+${featureTypes.length - featuresShown.length}`;
-    ctx.font = `700 16px ${MONO_FONT}, monospace`;
+    ctx.font = `700 16px ${fontStack('mono')}`;
     const moreW = ctx.measureText(more).width + PILL_PAD_X * 2;
     if (pillX + moreW <= WIDTH - M) {
       ctx.beginPath();
@@ -419,7 +455,7 @@ export async function renderProfileOg(slug, profileData) {
 
   // URL chip on the left
   const url = `persn.me/${slug}`;
-  ctx.font = `700 18px ${MONO_FONT}, monospace`;
+  ctx.font = `700 18px ${fontStack('mono')}`;
   const urlW = ctx.measureText(url).width;
   const urlPadX = 18;
   const urlH = 38;
@@ -441,13 +477,13 @@ export async function renderProfileOg(slug, profileData) {
   ctx.stroke();
 
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.font = `700 18px ${MONO_FONT}, monospace`;
+  ctx.font = `700 18px ${fontStack('mono')}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(url, M + urlPadX + 24, FOOT_Y + urlH / 2 + 1);
 
   // CTA on the right — "claim yours →"
-  ctx.font = `900 18px ${DISPLAY_FONT}, sans-serif`;
+  ctx.font = `900 18px ${fontStack('display')}`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
@@ -478,7 +514,7 @@ function roundRect(ctx, x, y, w, h, r) {
 function fitFontSize(ctx, text, maxWidth, maxPx, minPx, font, weight = '700') {
   let size = maxPx;
   while (size > minPx) {
-    ctx.font = `${weight} ${size}px ${font}, sans-serif`;
+    ctx.font = `${weight} ${size}px ${font}`;
     if (ctx.measureText(text).width <= maxWidth) return size;
     size -= 2;
   }
@@ -528,4 +564,22 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function normalizeOgText(value) {
+  return String(value || '')
+    .normalize('NFC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fontStack(kind = 'body') {
+  if (kind === 'mono') {
+    return `${MONO_FONT}, ${UNICODE_FONT}, ${ARABIC_FONT}, monospace`;
+  }
+  if (kind === 'display') {
+    return `${DISPLAY_FONT}, ${UNICODE_FONT}, ${ARABIC_FONT}, sans-serif`;
+  }
+  return `${BODY_FONT}, ${UNICODE_FONT}, ${ARABIC_FONT}, sans-serif`;
 }

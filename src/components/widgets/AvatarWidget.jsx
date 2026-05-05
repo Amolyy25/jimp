@@ -16,6 +16,7 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss, 
     layout = 'center', 
     textAlign = 'center',
     textEffect = 'none', 
+    matrixLoopDelay = 10,
     username, 
     bio, 
     avatarUrl, 
@@ -27,7 +28,11 @@ export default function AvatarWidget({ widget, musicPlaying, accent, accentCss, 
   const [imgFailed, setImgFailed] = useState(false);
   const ringColor = accent || '#5865F2';
   
-  const scrambledName = useScrambleText(username || 'yourname', textEffect === 'matrix');
+  const scrambledName = useScrambleText(
+    username || 'yourname',
+    textEffect === 'matrix',
+    matrixLoopDelay * 1000,
+  );
 
   const containerClasses = {
     top: 'flex-col items-center text-center',

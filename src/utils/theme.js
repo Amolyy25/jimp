@@ -64,3 +64,34 @@ export function hexToRgba(hex, alpha = 1) {
 export function accentRgba(accent, alpha) {
   return hexToRgba(accentHex(accent), alpha);
 }
+
+/**
+ * Pick a readable foreground color for a solid background.
+ * Useful when the user chooses very light accents like white.
+ */
+export function getContrastTextColor(hex, light = '#FFFFFF', dark = '#111111') {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return light;
+  const [r, g, b] = rgb.map((channel) => {
+    const s = channel / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+  return luminance > 0.62 ? dark : light;
+}
+
+export function isLightColor(hex) {
+  return getContrastTextColor(hex, '#FFFFFF', '#111111') === '#111111';
+}
+
+function hexToRgb(hex) {
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return null;
+  let h = hex.slice(1);
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (h.length !== 6) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if ([r, g, b].some((value) => Number.isNaN(value))) return null;
+  return [r, g, b];
+}
