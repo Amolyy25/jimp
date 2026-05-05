@@ -14,8 +14,7 @@
  * solution against `/api/cap/redeem`, and yields a short-lived token.
  */
 
-const CAP_API_BASE = import.meta.env.PUBLIC_ORIGIN || '/api';
-const CAP_API_ENDPOINT = `${CAP_API_BASE}/cap`;
+const CAP_API_ENDPOINT = '/api/cap/';
 
 let widgetModulePromise = null;
 function loadWidgetModule() {
