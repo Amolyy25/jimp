@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratoire Interactif : Haute Disponibilité</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 250px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 250px;
+            max-height: 250px;
+        }
+        .fade-in {
+            animation: fadeIn 0.4s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .net-node {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .active-node {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.5);
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            z-index: 10;
+        }
+        .inactive-node {
+            opacity: 0.4;
+            filter: grayscale(80%);
+            transform: scale(0.95);
+        }
+        .code-block::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .code-block::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        .code-block::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Chosen Palette: Slate (neutrals), Blue-600 (primary action/tech), Emerald-500 (success/progress), Amber-500 (backup/HA) -->
+    <!-- Application Structure Plan: Dashboard interactif divisé en deux volets. À gauche, la navigation par étapes (wizard) et le suivi de progression (Chart.js). À droite, l'espace de travail dynamique affichant les objectifs, le schéma d'infrastructure ciblé (animé via CSS/Tailwind sans SVG), les commandes à exécuter et les tâches à valider. Cette structure permet à l'étudiant de comprendre où il se situe dans l'architecture globale avant de taper des commandes, transformant un document plat en une expérience guidée et logique. -->
+    <!-- Visualization & Content Choices: 1. Suivi de progression -> Goal: Inform/Organize -> Chart.js Doughnut -> Interactif via les cases à cocher des tâches -> Justification: Gamification et repère visuel immédiat. 2. Carte de l'infrastructure -> Goal: Organize/Relationships -> CSS Grid Layout avec Unicode -> Interactif via JS (mise en évidence des noeuds selon l'étape) -> Justification: Comprendre le flux réseau sans utiliser SVG/Mermaid prohibés. 3. Blocs de code -> Goal: Inform -> Pre/Code tags -> Interactif via bouton Copier -> Justification: Efficacité pratique. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🎓</span>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900">Labo Interactif : Infrastructure HA</h1>
+                    <p class="text-sm text-slate-500">TP d'Architecture et Haute Disponibilité</p>
+                </div>
+            </div>
+            <div class="hidden md:flex items-center space-x-2 text-sm font-medium text-slate-600">
+                <span>Statut global :</span>
+                <span id="global-status-badge" class="px-2 py-1 rounded-full bg-slate-100 text-slate-600">Initialisation</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex flex-col lg:flex-row gap-8">
+        
+        <aside class="w-full lg:w-1/4 flex flex-col gap-6">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-2">Progression du TP</h2>
+                <p class="text-sm text-slate-500 mb-4">Validez les tâches de chaque étape pour avancer.</p>
+                <div class="chart-container">
+                    <canvas id="progressChart"></canvas>
+                </div>
+                <div class="mt-4 text-center">
+                    <span class="text-3xl font-extrabold text-blue-600" id="progress-text">0%</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+                    <h3 class="font-bold text-slate-800">Plan d'action</h3>
+                </div>
+                <nav id="step-navigation" class="flex flex-col">
+                </nav>
+            </div>
+        </aside>
+
+        <section class="w-full lg:w-3/4 flex flex-col gap-6">
+            
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col gap-4">
+                <h2 class="text-2xl font-bold text-slate-900" id="current-step-title">Chargement...</h2>
+                <div id="current-step-intro" class="text-slate-600 text-base leading-relaxed bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">Topologie de l'Infrastructure</h3>
+                <p class="text-sm text-slate-500 mb-6">Cette vue dynamique met en évidence les composants réseau concernés par l'étape en cours.</p>
+                
+                <div class="bg-slate-100 rounded-xl p-6 relative overflow-hidden flex flex-col items-center justify-center min-h-[300px] border border-slate-200">
+                    
+                    <div class="flex flex-col items-center gap-8 w-full max-w-2xl">
+                        
+                        <div class="flex justify-center w-full">
+                            <div id="node-wan" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-3 w-32 shadow-sm">
+                                <span class="text-3xl mb-1">☁️</span>
+                                <span class="text-xs font-bold text-slate-700">WAN / Internet</span>
+                                <span class="text-[10px] text-slate-500 mt-1">DHCP</span>
+                            </div>
+                        </div>
+
+                        <div class="w-px h-8 bg-slate-300"></div>
+
+                        <div class="flex justify-between w-full relative">
+                            <div class="absolute top-1/2 left-0 w-full h-px bg-slate-300 -z-10 border-t-2 border-dashed border-amber-300" id="sync-link"></div>
+                            
+                            <div id="node-fw1" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-3 w-36 shadow-sm relative">
+                                <span class="absolute -top-2 -left-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">MASTER</span>
+                                <span class="text-3xl mb-1">🧱</span>
+                                <span class="text-xs font-bold text-slate-700">FW1 (pfSense)</span>
+                                <span class="text-[10px] text-slate-500 mt-1">192.168.1.2</span>
+                            </div>
+
+                            <div id="node-sync" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-2 w-24 shadow-sm z-10">
+                                <span class="text-xl mb-1">🔄</span>
+                                <span class="text-[10px] font-bold text-slate-700">SYNC (HA)</span>
+                                <span class="text-[9px] text-slate-500">172.16.1.X</span>
+                            </div>
+
+                            <div id="node-fw2" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-3 w-36 shadow-sm relative">
+                                <span class="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">BACKUP</span>
+                                <span class="text-3xl mb-1">🧱</span>
+                                <span class="text-xs font-bold text-slate-700">FW2 (pfSense)</span>
+                                <span class="text-[10px] text-slate-500 mt-1">192.168.1.3</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between w-full px-16">
+                            <div class="w-px h-8 bg-slate-300"></div>
+                            <div class="w-px h-8 bg-slate-300"></div>
+                        </div>
+
+                        <div class="flex justify-center w-full">
+                            <div id="node-dmz" class="net-node w-full border-2 border-slate-300 border-dashed rounded-xl p-4 bg-white/50 relative">
+                                <span class="absolute -top-3 left-4 bg-slate-200 text-slate-600 text-xs font-bold px-2 py-1 rounded">Réseau DMZ (10.10.10.X/28)</span>
+                                
+                                <div class="flex flex-wrap justify-center gap-4 mt-2">
+                                    <div id="node-web1" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-3 w-28 shadow-sm">
+                                        <span class="text-2xl mb-1">🌐</span>
+                                        <span class="text-[10px] font-bold text-slate-700">SRV-WEB1</span>
+                                        <span class="text-[9px] text-slate-500">10.10.10.4</span>
+                                    </div>
+                                    <div id="node-web2" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-3 w-28 shadow-sm">
+                                        <span class="text-2xl mb-1">🌐</span>
+                                        <span class="text-[10px] font-bold text-slate-700">SRV-WEB2</span>
+                                        <span class="text-[9px] text-slate-500">10.10.10.5</span>
+                                    </div>
+                                    <div id="node-sas" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-3 w-32 shadow-sm">
+                                        <span class="text-2xl mb-1">💾</span>
+                                        <span class="text-[10px] font-bold text-slate-700">SAS (RAID/NFS)</span>
+                                        <span class="text-[9px] text-slate-500">10.10.10.6</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-px h-8 bg-slate-300 absolute bottom-12 left-[20%]"></div>
+                        
+                        <div class="absolute bottom-4 left-[10%]">
+                            <div id="node-client" class="net-node flex flex-col items-center justify-center bg-white border-2 border-slate-300 rounded-lg p-3 w-32 shadow-sm">
+                                <span class="text-3xl mb-1">💻</span>
+                                <span class="text-xs font-bold text-slate-700">CLIENT (LAN)</span>
+                                <span class="text-[10px] text-slate-500 mt-1">192.168.1.X</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-full">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span>📋</span> Tâches à valider
+                    </h3>
+                    <p class="text-sm text-slate-500 mb-4">Cochez les actions au fur et à mesure de votre progression dans la console VCSA.</p>
+                    <div id="tasks-container" class="flex flex-col gap-3 flex-grow overflow-y-auto">
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-xl shadow-sm border border-slate-800 p-0 flex flex-col h-full overflow-hidden relative group">
+                    <div class="bg-slate-800 px-4 py-2 flex justify-between items-center border-b border-slate-700">
+                        <span class="text-xs font-mono text-slate-400">Terminal / Configuration</span>
+                        <button onclick="copyCurrentCode()" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded transition-colors flex items-center gap-1">
+                            <span>📋</span> Copier
+                        </button>
+                    </div>
+                    <div class="p-4 flex-grow overflow-y-auto code-block relative">
+                        <pre id="code-container" class="text-sm font-mono text-emerald-400 whitespace-pre-wrap break-all"></pre>
+                        <div id="copy-toast" class="absolute top-4 right-4 bg-emerald-500 text-white text-xs px-3 py-1 rounded opacity-0 transition-opacity duration-300 pointer-events-none">Copié !</div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        const stepsData = [
+            {
+                id: 1,
+                title: "Étape 1 : Adressage IP des Firewalls",
+                intro: "L'objectif de cette première étape est de configurer les fondations réseau de notre infrastructure. Vous allez attribuer les adresses IP aux 4 interfaces (WAN, LAN, SYNC, DMZ) de vos deux firewalls pfSense en utilisant la console textuelle. C'est le prérequis absolu pour que les équipements puissent communiquer entre eux et former le cluster.",
+                focusNodes: ['node-fw1', 'node-fw2', 'node-wan', 'node-client'],
+                tasks: [
+                    { id: "t1_1", text: "Accéder à la console VCSA de FW1 et FW2" },
+                    { id: "t1_2", text: "Configurer em1 (LAN) sur 192.168.1.2 (FW1) et .3 (FW2)" },
+                    { id: "t1_3", text: "Configurer em2 (SYNC) sur 172.16.1.2 (FW1) et .3 (FW2)" },
+                    { id: "t1_4", text: "Configurer em3 (DMZ) sur 10.10.10.2 (FW1) et .3 (FW2)" }
+                ],
+                code: `// Interfaces FW1 (Choix 2 dans la console)
+WAN (em0) : DHCP
+LAN (em1) : 192.168.1.2 / 24
+SYNC (em2) : 172.16.1.2 / 29
+DMZ (em3) : 10.10.10.2 / 28
+
+// Interfaces FW2 (Choix 2 dans la console)
+WAN (em0) : DHCP
+LAN (em1) : 192.168.1.3 / 24
+SYNC (em2) : 172.16.1.3 / 29
+DMZ (em3) : 10.10.10.3 / 28`
+            },
+            {
+                id: 2,
+                title: "Étape 2 : Synchronisation HA (pfsync)",
+                intro: "Maintenant que le réseau est en place, nous allons lier les deux firewalls. Cette étape permet à FW1 (Maître) de copier en temps réel sa configuration et sa table d'état (les connexions actives) vers FW2 (Esclave) via le réseau dédié SYNC. En cas de panne de FW1, FW2 prendra le relais sans couper les connexions existantes.",
+                focusNodes: ['node-fw1', 'node-fw2', 'node-sync', 'sync-link'],
+                tasks: [
+                    { id: "t2_1", text: "Connectez-vous à l'interface web (http://192.168.1.2) depuis le CLIENT" },
+                    { id: "t2_2", text: "Firewall > Rules : Autoriser tout le trafic sur les onglets SYNC et DMZ" },
+                    { id: "t2_3", text: "Sur FW1 : Configurer High Avail. Sync (States + XMLRPC vers 172.16.1.3)" },
+                    { id: "t2_4", text: "Sur FW2 : Activer uniquement Synchronize states vers 172.16.1.2" }
+                ],
+                code: `// Configuration XMLRPC sur FW1 (System > High Avail. Sync)
+Synchronize Config to IP : 172.16.1.3
+Remote System Username : admin
+Remote System Password : [votre_mot_de_passe]
+
+// Ne pas oublier de cocher toutes les cases de synchronisation 
+// en bas de la page sur FW1.`
+            },
+            {
+                id: 3,
+                title: "Étape 3 : Adresses IP Virtuelles (CARP)",
+                intro: "Le protocole CARP (Common Address Redundancy Protocol) permet à FW1 et FW2 de partager des adresses IP communes dites 'Virtuelles' (VIP). Les serveurs de la DMZ et les clients utiliseront ces VIP comme passerelle. Si FW1 tombe, FW2 s'approprie immédiatement ces VIP. C'est le coeur de la tolérance de panne réseau.",
+                focusNodes: ['node-fw1', 'node-fw2', 'node-dmz'],
+                tasks: [
+                    { id: "t3_1", text: "Sur FW1 : Firewall > Virtual IPs > Add" },
+                    { id: "t3_2", text: "Créer VIP CARP WAN : 172.19.1.222/24 (VHID 5)" },
+                    { id: "t3_3", text: "Créer VIP CARP CLIENT : 192.168.1.1/24 (VHID 13)" },
+                    { id: "t3_4", text: "Créer VIP CARP DMZ : 10.10.10.1/28 (VHID 27)" },
+                    { id: "t3_5", text: "📸 CAPTURE : Vérifier le statut (Master/Backup) dans Status > CARP" }
+                ],
+                code: `// Exemple de création CARP pour la DMZ
+Type : CARP
+Interface : DMZ
+Address type : Single address
+Address : 10.10.10.1 / 28
+Virtual IP Password : [mot_de_passe_commun]
+VHID Group : 27
+
+// Note : La configuration se synchronise automatiquement sur FW2.`
+            },
+            {
+                id: 4,
+                title: "Étape 4 : Stockage Centralisé (RAID 5 & LVM)",
+                intro: "Notre réseau est robuste, passons aux données. La machine SAS (Storage Area System) va héberger les fichiers du site web. Pour garantir l'intégrité des données en cas de casse d'un disque, nous configurons un RAID 5 logiciel via mdadm. Sur ce RAID, LVM (Logical Volume Manager) apporte la flexibilité nécessaire pour redimensionner l'espace de stockage à la volée dans le futur.",
+                focusNodes: ['node-sas', 'node-dmz'],
+                tasks: [
+                    { id: "t4_1", text: "Sur la VM SAS : Ajouter 3 disques de 10Go dans les paramètres VCSA" },
+                    { id: "t4_2", text: "Créer les partitions avec fdisk sur sdb, sdc, sdd (type fd)" },
+                    { id: "t4_3", text: "Créer le RAID 5 (/dev/md0) avec mdadm" },
+                    { id: "t4_4", text: "Créer l'architecture LVM (PV, VG, LV) sur le RAID" },
+                    { id: "t4_5", text: "Formater en ext4 et configurer le montage automatique dans /etc/fstab" }
+                ],
+                code: `# 1. Création du RAID 5
+mdadm --create /dev/md0 --level=5 --raid-devices=3 /dev/sdb1 /dev/sdc1 /dev/sdd1
+cat /proc/mdstat # Vérifier la construction
+
+# 2. Configuration LVM
+pvcreate /dev/md0
+vgcreate vg_raid5 /dev/md0
+lvcreate -n lv_data -l 100%FREE vg_raid5
+mkfs.ext4 /dev/vg_raid5/lv_data
+
+# 3. Montage
+mkdir -p /mnt/raid
+echo "/dev/mapper/vg_raid5-lv_data /mnt/raid ext4 defaults 0 0" >> /etc/fstab
+mount -a`
+            },
+            {
+                id: 5,
+                title: "Étape 5 : Ferme Web et Load Balancing",
+                intro: "C'est l'aboutissement de l'infrastructure. Le stockage SAS est partagé via le réseau (NFS) aux deux serveurs web (SRV-WEB1 et SRV-WEB2) pour qu'ils distribuent le même contenu. Ensuite, le package HAProxy installé sur le Firewall maître agit comme un répartiteur de charge (Load Balancer) : il reçoit les requêtes des clients sur l'IP virtuelle et les distribue équitablement entre les deux serveurs web.",
+                focusNodes: ['node-web1', 'node-web2', 'node-sas', 'node-fw1'],
+                tasks: [
+                    { id: "t5_1", text: "SAS : Configurer et exporter le partage NFS pour le réseau 10.10.10.0/28" },
+                    { id: "t5_2", text: "WEB1/WEB2 : Installer apache2 et monter le partage NFS dans /var/www/html" },
+                    { id: "t5_3", text: "FW1 : Installer le paquet HAProxy" },
+                    { id: "t5_4", text: "FW1 (HAProxy) : Créer le Backend contenant WEB1 et WEB2" },
+                    { id: "t5_5", text: "FW1 (HAProxy) : Créer le Frontend écoutant sur la VIP DMZ port 80" },
+                    { id: "t5_6", text: "📸 CAPTURE : Tester l'accès depuis le CLIENT web et simuler une panne" }
+                ],
+                code: `# --- Sur la machine SAS ---
+apt install nfs-kernel-server -y
+echo "/mnt/raid 10.10.10.0/28(rw,sync,no_subtree_check)" >> /etc/exports
+exportfs -ra
+
+# --- Sur SRV-WEB1 et SRV-WEB2 ---
+apt update && apt install apache2 nfs-common -y
+mount 10.10.10.6:/mnt/raid /var/www/html
+echo "<h1>Site Haute Dispo - SRV X</h1>" > /var/www/html/index.html
+
+# Note HAProxy : 
+# L'interface web pfSense permet de définir la VIP DMZ en écoute (Frontend)
+# et de pointer vers les IPs 10.10.10.4 et .5 (Backend).`
+            },
+            {
+                id: 6,
+                title: "Étape 6 : Stratégie de Sauvegarde",
+                intro: "La haute disponibilité ne remplace pas la sauvegarde. Si un fichier est supprimé par erreur sur le stockage partagé, le RAID 5 l'effacera instantanément. L'objectif final est de mettre en place une copie déportée des données applicatives vers un serveur de secours utilisant l'outil standard de synchronisation sous Linux : rsync.",
+                focusNodes: ['node-sas', 'node-dmz'],
+                tasks: [
+                    { id: "t6_1", text: "Préparer un répertoire de destination sur une machine distante" },
+                    { id: "t6_2", text: "Exécuter la commande rsync depuis le SAS ou vers le SAS" },
+                    { id: "t6_3", text: "📸 CAPTURE : Vérifier la présence des fichiers sauvegardés" }
+                ],
+                code: `# Exemple de commande de synchronisation rsync
+# (À adapter selon la machine de destination choisie)
+
+rsync -avz root@10.10.10.6:/mnt/raid/ /backup/webapp/
+
+# Options :
+# -a : archive (conserve les permissions, dates, etc.)
+# -v : verbeux (affiche les détails)
+# -z : compression pendant le transfert`
+            }
+        ];
+
+        let currentStepIndex = 0;
+        let progressChartInstance = null;
+        const taskState = {}; 
+
+        function initData() {
+            stepsData.forEach(step => {
+                step.tasks.forEach(task => {
+                    taskState[task.id] = false;
+                });
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            progressChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Complété', 'Restant'],
+                    datasets: [{
+                        data: [0, 100],
+                        backgroundColor: ['#10b981', '#f1f5f9'],
+                        borderWidth: 0,
+                        cutout: '75%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    animation: { animateScale: true, animateRotate: true }
+                }
+            });
+        }
+
+        function updateProgress() {
+            const totalTasks = Object.keys(taskState).length;
+            const completedTasks = Object.values(taskState).filter(val => val === true).length;
+            const percentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+            document.getElementById('progress-text').innerText = percentage + '%';
+            
+            progressChartInstance.data.datasets[0].data = [percentage, 100 - percentage];
+            progressChartInstance.update();
+
+            const statusBadge = document.getElementById('global-status-badge');
+            if (percentage === 100) {
+                statusBadge.innerText = "Terminé";
+                statusBadge.className = "px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold";
+            } else if (percentage > 0) {
+                statusBadge.innerText = "En cours";
+                statusBadge.className = "px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-bold";
+            } else {
+                statusBadge.innerText = "Initialisation";
+                statusBadge.className = "px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-bold";
+            }
+        }
+
+        function toggleTask(taskId) {
+            taskState[taskId] = !taskState[taskId];
+            updateProgress();
+        }
+
+        function highlightNodes(focusNodes) {
+            document.querySelectorAll('.net-node').forEach(el => {
+                el.classList.remove('active-node');
+                el.classList.add('inactive-node');
+            });
+            focusNodes.forEach(nodeId => {
+                const node = document.getElementById(nodeId);
+                if (node) {
+                    node.classList.remove('inactive-node');
+                    node.classList.add('active-node');
+                }
+            });
+        }
+
+        function renderStep(index) {
+            currentStepIndex = index;
+            const step = stepsData[index];
+
+            document.querySelectorAll('#step-navigation button').forEach((btn, i) => {
+                if (i === index) {
+                    btn.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-700', 'font-bold');
+                    btn.classList.remove('border-transparent', 'text-slate-600', 'hover:bg-slate-50');
+                } else {
+                    btn.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-700', 'font-bold');
+                    btn.classList.add('border-transparent', 'text-slate-600', 'hover:bg-slate-50');
+                }
+            });
+
+            const titleEl = document.getElementById('current-step-title');
+            const introEl = document.getElementById('current-step-intro');
+            
+            titleEl.classList.remove('fade-in');
+            introEl.classList.remove('fade-in');
+            
+            void titleEl.offsetWidth; 
+
+            titleEl.innerText = step.title;
+            introEl.innerHTML = step.intro;
+            
+            titleEl.classList.add('fade-in');
+            introEl.classList.add('fade-in');
+
+            highlightNodes(step.focusNodes);
+
+            const tasksContainer = document.getElementById('tasks-container');
+            tasksContainer.innerHTML = '';
+            step.tasks.forEach(task => {
+                const isChecked = taskState[task.id] ? 'checked' : '';
+                const taskHtml = `
+                    <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <div class="mt-0.5">
+                            <input type="checkbox" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                                   ${isChecked} onchange="toggleTask('${task.id}')">
+                        </div>
+                        <span class="text-sm text-slate-700 select-none">${task.text}</span>
+                    </label>
+                `;
+                tasksContainer.insertAdjacentHTML('beforeend', taskHtml);
+            });
+
+            const codeContainer = document.getElementById('code-container');
+            codeContainer.innerText = step.code;
+        }
+
+        function renderNavigation() {
+            const nav = document.getElementById('step-navigation');
+            nav.innerHTML = '';
+            stepsData.forEach((step, index) => {
+                const btn = document.createElement('button');
+                btn.className = "text-left px-6 py-3 text-sm border-l-4 transition-colors duration-200 outline-none";
+                btn.innerHTML = `Étape ${index + 1}`;
+                btn.onclick = () => renderStep(index);
+                nav.appendChild(btn);
+            });
+        }
+
+        function copyCurrentCode() {
+            const code = document.getElementById('code-container').innerText;
+            const textArea = document.createElement("textarea");
+            textArea.value = code;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                const toast = document.getElementById('copy-toast');
+                toast.classList.remove('opacity-0');
+                setTimeout(() => {
+                    toast.classList.add('opacity-0');
+                }, 2000);
+            } catch (err) {
+                console.error('Copy failed');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        window.onload = () => {
+            initData();
+            initChart();
+            renderNavigation();
+            renderStep(0);
+            updateProgress();
+        };
+
+    </script>
+</body>
+</html>

@@ -70,6 +70,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const SLUG_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const PROFILE_MAX_BYTES = 512 * 1024; // 512 KB cap per profile blob
+// SEO policy: public profiles should rank for named searches such as
+// "persn.me lila", while the homepage remains the strongest signal for
+// the bare brand query "persn.me".
+const INDEX_PUBLIC_PROFILES = process.env.INDEX_PUBLIC_PROFILES !== 'false';
 
 /* -------------------------------------------------------------------------- */
 /* Process-level diagnostics                                                   */
@@ -749,17 +753,19 @@ app.get('/sitemap.xml', async (req, res) => {
     }
 
     const origin = publicOrigin(req);
-    const profiles = await prisma.profile.findMany({
-      select: { slug: true, updatedAt: true },
-      orderBy: { updatedAt: 'desc' },
-      take: SITEMAP_MAX_URLS,
-    });
+    const profiles = INDEX_PUBLIC_PROFILES
+      ? await prisma.profile.findMany({
+          select: { slug: true, updatedAt: true },
+          orderBy: { updatedAt: 'desc' },
+          take: SITEMAP_MAX_URLS,
+        })
+      : [];
 
     const entries = [
       `  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>`,
       ...profiles.map((p) => {
         const lastmod = p.updatedAt ? new Date(p.updatedAt).toISOString() : '';
-        return `  <url><loc>${origin}/${escapeHtml(p.slug)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.8</priority></url>`;
+        return `  <url><loc>${origin}/${escapeHtml(p.slug)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.4</priority></url>`;
       }),
     ].join('\n');
 
@@ -810,7 +816,8 @@ if (IS_PROD) {
     // SPA fallback. For root-level one-segment paths (potentially vanity
     // slugs) we try to look the profile up and rewrite meta tags so
     // Discord/Twitter/iMessage show a rich preview when the link is
-    // pasted. Everything else gets the untouched shell.
+    // pasted. Known app routes get explicit noindex metadata when they
+    // should not compete with the homepage in search.
     app.get(/^(?!\/api\/|\/assets\/).*/, async (req, res) => {
       try {
         const match = req.path.match(/^\/([a-z0-9][a-z0-9-]{1,29})$/i);
@@ -822,6 +829,11 @@ if (IS_PROD) {
             res.set('Content-Type', 'text/html; charset=utf-8');
             return res.send(html);
           }
+        }
+        const routeMeta = routeSeoMeta(req.path, req);
+        if (routeMeta) {
+          res.set('Content-Type', 'text/html; charset=utf-8');
+          return res.send(injectRouteMeta(indexHtml, routeMeta));
         }
       } catch (err) {
         // Fall through to unmodified shell — never block the SPA on meta
@@ -940,13 +952,13 @@ function injectProfileMeta(html, slug, data, req) {
   };
 
   const tags = [
-    `<title>@${escapeHtml(username)} — persn.me</title>`,
-    `<meta name="description" content="${escapeHtml(bio)}" />`,
+    `<title>@${escapeHtml(username)} on persn.me</title>`,
+    `<meta name="description" content="${escapeHtml(bio)} View @${escapeHtml(username)}'s personal profile on persn.me." />`,
     `<link rel="canonical" href="${url}" />`,
-    `<meta name="robots" content="index,follow" />`,
+    `<meta name="robots" content="${INDEX_PUBLIC_PROFILES ? 'index,follow' : 'noindex,follow'}" />`,
     `<meta property="og:type" content="profile" />`,
     `<meta property="og:site_name" content="persn.me" />`,
-    `<meta property="og:title" content="@${escapeHtml(username)}" />`,
+    `<meta property="og:title" content="@${escapeHtml(username)} on persn.me" />`,
     `<meta property="og:description" content="${escapeHtml(bio)}" />`,
     `<meta property="og:url" content="${url}" />`,
     `<meta property="og:image" content="${ogImage}" />`,
@@ -954,7 +966,7 @@ function injectProfileMeta(html, slug, data, req) {
     `<meta property="og:image:height" content="630" />`,
     `<meta property="profile:username" content="${escapeHtml(username)}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
-    `<meta name="twitter:title" content="@${escapeHtml(username)} — persn.me" />`,
+    `<meta name="twitter:title" content="@${escapeHtml(username)} on persn.me" />`,
     `<meta name="twitter:description" content="${escapeHtml(bio)}" />`,
     `<meta name="twitter:image" content="${ogImage}" />`,
     // Discord uses og:image but also respects a theme colour hint.
@@ -968,6 +980,85 @@ function injectProfileMeta(html, slug, data, req) {
     return html
       .replace(/<title>[^<]*<\/title>\s*/i, '')
       .replace(/(<meta name="description"[^>]*>\s*)/i, '')
+      .replace(/(<meta name="keywords"[^>]*>\s*)/i, '')
+      .replace(/(<meta name="robots"[^>]*>\s*)/i, '')
+      .replace(/(<link rel="canonical"[^>]*>\s*)/i, '')
+      .replace(/<head>/i, `<head>\n    ${tags}`);
+  }
+  return html.replace(/<head>/i, `<head>\n    ${tags}`);
+}
+
+function routeSeoMeta(pathname, req) {
+  const origin = publicOrigin(req);
+  const url = `${origin}${pathname}`;
+  const fixedRoutes = {
+    '/explore': {
+      title: 'Explore profiles — persn.me',
+      description: 'Discover public persn.me profiles.',
+      robots: 'noindex,follow',
+      canonical: url,
+    },
+    '/clicker': {
+      title: 'Profile clicker — persn.me',
+      description: 'persn.me community clicker leaderboard.',
+      robots: 'noindex,follow',
+      canonical: url,
+    },
+    '/view': {
+      title: 'Profile preview — persn.me',
+      description: 'Preview a persn.me profile.',
+      robots: 'noindex,follow',
+      canonical: url,
+    },
+    '/login': {
+      title: 'Sign in — persn.me',
+      description: 'Sign in to persn.me.',
+      robots: 'noindex,nofollow',
+      canonical: url,
+    },
+    '/register': {
+      title: 'Create an account — persn.me',
+      description: 'Create your persn.me account.',
+      robots: 'noindex,nofollow',
+      canonical: url,
+    },
+    '/editor': {
+      title: 'Editor — persn.me',
+      description: 'Edit your persn.me profile.',
+      robots: 'noindex,nofollow',
+      canonical: url,
+    },
+    '/analytique': {
+      title: 'Analytics — persn.me',
+      description: 'persn.me analytics dashboard.',
+      robots: 'noindex,nofollow',
+      canonical: url,
+    },
+    '/verify-email': {
+      title: 'Verify email — persn.me',
+      description: 'Verify your persn.me account email.',
+      robots: 'noindex,nofollow',
+      canonical: url,
+    },
+  };
+  return fixedRoutes[pathname] || null;
+}
+
+function injectRouteMeta(html, meta) {
+  const tags = [
+    `<title>${escapeHtml(meta.title)}</title>`,
+    `<meta name="description" content="${escapeHtml(meta.description)}" />`,
+    `<meta name="robots" content="${escapeHtml(meta.robots)}" />`,
+    `<link rel="canonical" href="${escapeHtml(meta.canonical)}" />`,
+  ].join('\n    ');
+
+  if (/<title>[^<]*<\/title>/.test(html)) {
+    return html
+      .replace(/<title>[^<]*<\/title>\s*/i, '')
+      .replace(/(<meta name="description"[^>]*>\s*)/i, '')
+      .replace(/(<meta name="keywords"[^>]*>\s*)/i, '')
+      .replace(/(<meta name="robots"[^>]*>\s*)/i, '')
+      .replace(/(<link rel="canonical"[^>]*>\s*)/i, '')
       .replace(/<head>/i, `<head>\n    ${tags}`);
   }
   return html.replace(/<head>/i, `<head>\n    ${tags}`);
