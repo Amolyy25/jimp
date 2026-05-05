@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { SOCIALS } from '../../utils/socials.jsx';
 import { nanoid } from '../../utils/id.js';
 import TextInput from './controls/TextInput.jsx';
@@ -627,6 +628,9 @@ function DiscordPresenceForm({ data, onUpdate }) {
           Advanced → Developer Mode → right-click your name → Copy User ID.
         </p>
       )}
+
+      <PresenceStatusRow userId={validId ? data.userId : ''} />
+
       <ToggleRow
         title="Show current game"
         subtitle="Rich presence from the app you're playing."
@@ -642,19 +646,105 @@ function DiscordPresenceForm({ data, onUpdate }) {
       <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-[11px] leading-relaxed text-white/50">
         <p className="mb-1.5 font-semibold text-white/70">One-time setup</p>
         <p>
-          Join the{' '}
+          Rejoins le serveur{' '}
           <a
-            href="https://discord.gg/lanyard"
+            href={import.meta.env.VITE_DISCORD_INVITE || '#'}
             target="_blank"
             rel="noopener noreferrer"
             className="text-discord transition hover:underline"
           >
-            Lanyard Discord server
+            persn.me Discord
           </a>
-          {' '}so your presence is broadcast. Powered by lanyard.rest — a free
-          public service, no setup beyond that.
+          {' '}pour que notre bot puisse diffuser ton statut. Une fois rejoint,
+          la présence apparaît automatiquement.
         </p>
       </div>
+    </div>
+  );
+}
+
+const PRESENCE_POLL_MS = 30_000;
+
+function PresenceStatusRow({ userId }) {
+  const [status, setStatus] = useState('idle'); // idle | loading | connected | disconnected | error
+  const inviteUrl = import.meta.env.VITE_DISCORD_INVITE || '#';
+
+  useEffect(() => {
+    if (!userId) {
+      setStatus('idle');
+      return undefined;
+    }
+    let cancelled = false;
+    let timer = null;
+    let firstRun = true;
+
+    const tick = async () => {
+      if (firstRun) {
+        setStatus('loading');
+        firstRun = false;
+      }
+      try {
+        const res = await fetch(`/api/discord/presence/${userId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setStatus(data.inServer ? 'connected' : 'disconnected');
+      } catch {
+        if (!cancelled) setStatus('error');
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(tick, PRESENCE_POLL_MS);
+        }
+      }
+    };
+
+    tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [userId]);
+
+  if (status === 'idle') return null;
+
+  const dotColor =
+    status === 'connected'
+      ? '#43b581'
+      : status === 'loading'
+        ? '#9ca3af'
+        : '#747f8d';
+  const label =
+    status === 'loading'
+      ? 'Vérification…'
+      : status === 'connected'
+        ? 'Présence active'
+        : status === 'error'
+          ? 'Indisponible'
+          : 'Non connecté';
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-flex h-2 w-2 rounded-full"
+          style={{ background: dotColor }}
+          aria-hidden
+        />
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/70">
+          {label}
+        </span>
+      </div>
+      {status === 'disconnected' && (
+        <a
+          href={inviteUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 rounded-full bg-[#5865f2] px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-white transition hover:brightness-110 active:scale-95"
+        >
+          Rejoindre
+          <span aria-hidden>→</span>
+        </a>
+      )}
     </div>
   );
 }

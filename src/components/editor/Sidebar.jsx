@@ -346,6 +346,16 @@ function ThemeSection({ theme, onChange }) {
 
       <div className="border-t border-white/5" />
 
+      <h3 className="eyebrow">Effets de page</h3>
+      <ToggleRow
+        title="Effet Parallax 3D"
+        subtitle="La page réagit au mouvement de la souris du visiteur"
+        checked={!!theme?.parallaxEnabled}
+        onChange={(v) => onChange({ parallaxEnabled: v })}
+      />
+
+      <div className="border-t border-white/5" />
+
       <h3 className="eyebrow">Splash / Enter screen</h3>
       <ToggleRow
         title="Enable splash gate"

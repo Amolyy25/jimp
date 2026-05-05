@@ -28,13 +28,18 @@ export async function getMe() {
   }
 }
 
-export async function login(email, password) {
-  const { data } = await api.post('/auth/login', { email, password });
+export async function login(email, password, captchaToken) {
+  const { data } = await api.post('/auth/login', { email, password, captchaToken });
   return data;
 }
 
-export async function register(username, email, password) {
-  const { data } = await api.post('/auth/register', { username, email, password });
+export async function register(username, email, password, captchaToken) {
+  const { data } = await api.post('/auth/register', {
+    username,
+    email,
+    password,
+    captchaToken,
+  });
   return data;
 }
 
@@ -223,7 +228,7 @@ export async function importLinktree(url) {
 
 /* -------- Q&A (anonymous) -------- */
 
-/** Submit an anonymous question to a profile. Pass an hCaptcha token when
+/** Submit an anonymous question to a profile. Pass a CAP captcha token when
  *  available. Returns true on accepted/silently-accepted, throws on real
  *  validation errors so the UI can show them. */
 export async function sendQuestion(slug, body, captchaToken) {

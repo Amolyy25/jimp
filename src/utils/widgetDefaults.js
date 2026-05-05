@@ -164,13 +164,14 @@ export const WIDGET_CATALOG = {
   },
   discordPresence: {
     type: 'discordPresence',
-    label: 'Discord Presence (Lanyard)',
+    label: 'Discord Presence',
     defaultPos: { x: 48, y: 4 },
     defaultSize: { w: 18, h: 9 },
     style: { ...baseStyle(), bgOpacity: 0.06 },
     data: {
-      // Must be a snowflake (Discord user ID). The user also has to join the
-      // Lanyard Discord server for their presence to be broadcast.
+      // Must be a snowflake (Discord user ID). Presence is broadcast by our
+      // own gateway bot — the user has to join the persn.me Discord server
+      // for the bot to see them.
       userId: '',
       showActivity: true,
       showSpotify: true,

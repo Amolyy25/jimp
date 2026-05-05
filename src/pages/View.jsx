@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence, useSpring, useTransform, useMotionValue } from 'framer-motion';
 import BackgroundLayer from '../components/BackgroundLayer.jsx';
@@ -192,9 +192,45 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
   };
   const customCss = profile.theme?.customCss || '';
 
+  // Page-level 3D parallax — opt-in via theme.parallaxEnabled. Desktop only:
+  // we skip on the isMobile breakpoint AND a hard width gate, since the tilt
+  // would clash with the mobile stacking layout.
+  const rootRef = useRef(null);
+  const parallaxEnabled = !!profile.theme?.parallaxEnabled;
+  useEffect(() => {
+    if (!parallaxEnabled) return;
+    if (isMobile) return;
+    if (typeof window === 'undefined' || window.innerWidth < 768) return;
+    const el = rootRef.current;
+    if (!el) return;
+
+    const onMove = (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2;
+      const y = (e.clientY / window.innerHeight - 0.5) * 2;
+      const tiltX = y * -8;
+      const tiltY = x * 8;
+      el.style.transform = `perspective(1200px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+      el.style.transition = 'transform 0.08s ease-out';
+    };
+    const onLeave = () => {
+      el.style.transform = 'perspective(1200px) rotateX(0deg) rotateY(0deg)';
+      el.style.transition = 'transform 0.5s ease-out';
+    };
+
+    window.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseleave', onLeave);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseleave', onLeave);
+      el.style.transform = '';
+      el.style.transition = '';
+    };
+  }, [parallaxEnabled, isMobile]);
+
   return (
     <div
       id="profile-root"
+      ref={rootRef}
       className={`relative min-h-screen w-full overflow-x-hidden ${animClass}`}
       style={{ background: profile.theme?.pageBg || '#0a0a0a' }}
     >

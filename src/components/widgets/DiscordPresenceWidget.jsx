@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useLanyard } from '../../hooks/useLanyard.js';
 
 /**
- * Live Discord presence card, powered by Lanyard.
+ * Live Discord presence card, powered by our own gateway bot.
  *
- * Shows:
- *   - Avatar + global name + username with status dot (green/yellow/red/gray)
- *   - Custom status (first CUSTOM activity)
- *   - Current game activity (type 0) with elapsed timer
- *   - Spotify now playing (type 2) with album art + progress bar
+ * Backend pulls the presence from the bot's HTTP API on demand, with a
+ * shared 30s in-memory cache + concurrent-request dedup. The widget on
+ * the public profile (/:slug) hits the endpoint exactly ONCE on mount —
+ * the editor's read-only status row is the only place that polls.
  *
- * When the Lanyard user ID isn't set or the user isn't in the Lanyard
- * server, we render a friendly onboarding state.
+ * Two render states:
+ *   - inServer: true  → render the full status card
+ *   - inServer: false → render a locked card with a "join the server" CTA
+ *
+ * The locked state means the bot can't see this user (they haven't joined
+ * the persn.me Discord). Joining unlocks the live presence automatically.
  */
 
 const STATUS_COLORS = {
@@ -21,51 +23,98 @@ const STATUS_COLORS = {
   offline: '#747f8d',
 };
 
+const INVITE_URL = import.meta.env.VITE_DISCORD_INVITE || 'https://discord.gg/';
+
 export default function DiscordPresenceWidget({ widget, accent }) {
   const { userId, showActivity, showSpotify } = widget.data;
-  const { state, data } = useLanyard(userId);
+  const { state, data } = useOwnPresence(userId);
 
   if (!userId) {
     return <EmptyState message="Set your Discord user ID in the editor." />;
   }
 
-  if (state === 'connecting' || !data) {
-    return <EmptyState message="Connecting to Lanyard…" />;
+  if (state === 'loading' && !data) {
+    return <EmptyState message="Loading…" />;
   }
 
   if (state === 'error') {
-    return <EmptyState message="Join the Lanyard Discord to enable presence." />;
+    return <EmptyState message="Couldn't load Discord presence." />;
   }
 
-  const { discord_user, discord_status, activities, spotify, listening_to_spotify } = data;
-
-  // Lanyard occasionally ships partial payloads (e.g. user not yet fully
-  // indexed). Bail out defensively rather than crashing downstream
-  // `avatarUrl(discord_user)` / BigInt coercion.
-  if (!discord_user || !discord_user.id) {
-    return <EmptyState message="Presence unavailable — is this user in the Lanyard server?" />;
+  if (data && data.inServer === false) {
+    return <LockedCard accent={accent} />;
   }
 
-  // Lanyard's activity list contains games, custom status and Spotify. Pick
-  // the first "rich presence" activity that isn't the custom status or
-  // Spotify (type 4 and 2 respectively).
-  const game = activities?.find((a) => a.type === 0);
-  const customStatus = activities?.find((a) => a.type === 4);
+  if (!data) {
+    return <EmptyState message="Loading…" />;
+  }
+
+  return <PresenceCard data={data} accent={accent} showActivity={showActivity} showSpotify={showSpotify} />;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Polling hook                                                                */
+/* -------------------------------------------------------------------------- */
+
+function useOwnPresence(userId) {
+  const [state, setState] = useState(userId ? 'loading' : 'idle');
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    setData(null);
+    if (!userId || !/^\d{15,22}$/.test(userId)) {
+      setState('idle');
+      return undefined;
+    }
+    setState('loading');
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/discord/presence/${userId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        if (cancelled) return;
+        setData(payload);
+        setState('ready');
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('[discord-presence] fetch failed:', err);
+        setState('error');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  return { state, data };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Full card (inServer: true)                                                  */
+/* -------------------------------------------------------------------------- */
+
+function PresenceCard({ data, accent, showActivity, showSpotify }) {
+  const { status, activities = [], spotify, avatar, username, display_name } = data;
+
+  const game = activities.find((a) => a.type === 0);
+  const customStatus = activities.find((a) => a.type === 4);
 
   return (
     <div className="flex h-full w-full flex-col gap-3 overflow-hidden px-4 py-3">
-      {/* Header: avatar + user + status */}
       <div className="flex items-center gap-3">
         <div className="relative">
           <img
-            src={avatarUrl(discord_user)}
-            alt={discord_user.username}
+            src={avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+            alt={username || 'Discord user'}
             className="h-10 w-10 rounded-full border border-white/10 object-cover"
           />
           <span
             className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-black"
-            style={{ background: STATUS_COLORS[discord_status] || STATUS_COLORS.offline }}
-            title={discord_status}
+            style={{ background: STATUS_COLORS[status] || STATUS_COLORS.offline }}
+            title={status || 'offline'}
           />
         </div>
         <div className="min-w-0 flex-1">
@@ -73,27 +122,21 @@ export default function DiscordPresenceWidget({ widget, accent }) {
             className="truncate text-sm font-semibold tracking-tight"
             style={{ color: 'currentColor' }}
           >
-            {discord_user.global_name || discord_user.username}
+            {display_name || username || 'Discord user'}
           </div>
           <div
             className="truncate font-mono text-[10px] uppercase tracking-[0.18em]"
             style={{ color: 'currentColor', opacity: 0.45 }}
           >
-            {customStatus?.state || `@${discord_user.username}`}
+            {customStatus?.state || (username ? `@${username}` : '')}
           </div>
         </div>
       </div>
 
-      {/* Spotify */}
-      {showSpotify && listening_to_spotify && spotify && (
-        <SpotifyRow spotify={spotify} accent={accent} />
-      )}
-
-      {/* Game */}
+      {showSpotify && spotify && <SpotifyRow spotify={spotify} accent={accent} />}
       {showActivity && game && <ActivityRow activity={game} accent={accent} />}
 
-      {/* Nothing happening — small placeholder so the box doesn't feel empty */}
-      {!customStatus && !game && !(showSpotify && listening_to_spotify) && (
+      {!customStatus && !game && !(showSpotify && spotify) && (
         <div
           className="rounded-lg border border-dashed border-white/10 px-3 py-2 text-center font-mono text-[10px] uppercase tracking-[0.18em]"
           style={{ color: 'currentColor', opacity: 0.35 }}
@@ -104,6 +147,66 @@ export default function DiscordPresenceWidget({ widget, accent }) {
     </div>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Locked card (inServer: false) — join CTA                                    */
+/* -------------------------------------------------------------------------- */
+
+function LockedCard({ accent }) {
+  return (
+    <div className="relative flex h-full w-full flex-col gap-3 overflow-hidden px-4 py-3">
+      {/* Blurred placeholder */}
+      <div className="flex items-center gap-3 blur-sm opacity-50 select-none pointer-events-none">
+        <div className="relative">
+          <div className="h-10 w-10 rounded-full border border-white/10 bg-white/[0.06]" />
+          <span
+            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-black"
+            style={{ background: STATUS_COLORS.offline }}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="h-3 w-24 rounded bg-white/10" />
+          <div className="mt-1.5 h-2 w-16 rounded bg-white/5" />
+        </div>
+      </div>
+
+      {/* Centered overlay */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center backdrop-blur-[2px]">
+        <p
+          className="font-mono text-[11px] font-bold uppercase tracking-[0.2em]"
+          style={{ color: 'currentColor' }}
+        >
+          Active ton Discord Presence
+        </p>
+        <p
+          className="text-[10px] leading-snug"
+          style={{ color: 'currentColor', opacity: 0.55 }}
+        >
+          Rejoins le serveur persn.me pour afficher ton statut en temps réel
+        </p>
+        <a
+          href={INVITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-white transition hover:brightness-110 active:scale-95"
+          style={{ background: accent && accent.startsWith('linear-gradient(') ? accent : '#5865f2' }}
+        >
+          Rejoindre le serveur
+          <span aria-hidden>→</span>
+        </a>
+        <a
+          href="/help/discord-presence"
+          className="font-mono text-[9px] uppercase tracking-[0.2em] underline-offset-2 transition hover:underline"
+          style={{ color: 'currentColor', opacity: 0.45 }}
+        >
+          En savoir plus
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 
 function EmptyState({ message }) {
   return (
@@ -218,21 +321,6 @@ function ActivityRow({ activity, accent }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Assets + timers                                                             */
-/* -------------------------------------------------------------------------- */
-
-function avatarUrl(user) {
-  if (!user?.id) return 'https://cdn.discordapp.com/embed/avatars/0.png';
-  if (user.avatar) {
-    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
-  }
-  try {
-    const idx = (BigInt(user.id) >> 22n) % 6n;
-    return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
-  } catch {
-    return 'https://cdn.discordapp.com/embed/avatars/0.png';
-  }
-}
 
 function activityImageUrl(appId, key) {
   if (!key) return '';
@@ -245,11 +333,10 @@ function activityImageUrl(appId, key) {
   return `https://cdn.discordapp.com/app-assets/${appId}/${key}.png`;
 }
 
-/** Returns elapsed time as `mm:ss` since `startMs`. Ticks every second. */
 function useElapsed(startMs) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!startMs) return;
+    if (!startMs) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [startMs]);
@@ -260,11 +347,10 @@ function useElapsed(startMs) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** Returns Spotify progress as a 0-100 percentage. Ticks every second. */
 function useProgress(timestamps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!timestamps?.start || !timestamps?.end) return;
+    if (!timestamps?.start || !timestamps?.end) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [timestamps?.start, timestamps?.end]);

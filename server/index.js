@@ -43,6 +43,8 @@ import { registerAnalyticsRoutes } from './analytics.js';
 import { registerVersionRoutes } from './versions.js';
 import { registerSocialRoutes } from './social.js';
 import { registerAdminRoutes } from './admin.js';
+import { registerCapRoutes, verifyCaptchaToken } from './cap.js';
+import { registerDiscordPresenceRoutes } from './discordPresence.js';
 import { createRateLimiter } from './rateLimit.js';
 import { securityHeaders } from './securityHeaders.js';
 import { hasProfanity, findProfanityInObject } from './profanity.js';
@@ -247,9 +249,12 @@ app.get('/api/health', (_req, res) => {
 /* -------------------------------------------------------------------------- */
 
 app.post('/api/auth/register', authLimiter, async (req, res) => {
-  const { username, email, password } = req.body || {};
+  const { username, email, password, captchaToken } = req.body || {};
   if (!username || !email || !password) {
     return res.status(400).json({ error: 'Missing fields' });
+  }
+  if (!(await verifyCaptchaToken(captchaToken))) {
+    return res.status(400).json({ error: 'Captcha invalide' });
   }
   if (!isUsername(username)) {
     return res.status(400).json({
@@ -345,13 +350,16 @@ app.post('/api/auth/resend-verification', authLimiter, authenticate, async (req,
 });
 
 app.post('/api/auth/login', authLimiter, async (req, res) => {
-  const { email, password } = req.body || {};
+  const { email, password, captchaToken } = req.body || {};
   if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'Missing credentials' });
   }
   if (!isEmail(email) || password.length > 128) {
     // Same generic error as a wrong password — don't leak that the email is malformed.
     return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  if (!(await verifyCaptchaToken(captchaToken))) {
+    return res.status(400).json({ error: 'Captcha invalide' });
   }
   try {
     const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
@@ -662,6 +670,7 @@ app.get('/api/og/:slug', async (req, res) => {
 
 registerSpotifyRoutes(app, prisma, authenticate);
 registerDiscordAuthRoutes(app, prisma, authenticate, { issueSession });
+registerCapRoutes(app);
 
 /* -------------------------------------------------------------------------- */
 /* Other feature routes                                                        */
@@ -707,6 +716,7 @@ registerAdminRoutes(app, prisma, authenticate);
 registerQuestionRoutes(app, prisma, authenticate, { writeLimiter });
 registerClickerRoutes(app, prisma, { ingestLimiter });
 registerExploreRoutes(app, prisma);
+registerDiscordPresenceRoutes(app, prisma, { createRateLimiter });
 
 app.get('/api/check-slug/:slug', async (req, res) => {
   const slug = (req.params.slug || '').toLowerCase();

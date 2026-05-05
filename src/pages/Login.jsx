@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowUpRight, Loader2, Eye, EyeOff } from 'lucide-react';
 import AuthLayout from '../components/AuthLayout.jsx';
+import CapCaptcha from '../components/CapCaptcha.jsx';
 import { discordConnectUrl, login } from '../utils/api.js';
+import { isCaptchaEnabled } from '../utils/captcha.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -10,6 +12,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [revealPw, setRevealPw] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const captchaRequired = isCaptchaEnabled();
 
   // Surface Discord OAuth failures (the callback redirects here with a flag).
   useEffect(() => {
@@ -28,13 +32,18 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (captchaRequired && !captchaToken) {
+      setError('Captcha invalide');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      await login(formData.email, formData.password);
+      await login(formData.email, formData.password, captchaToken);
       navigate('/editor');
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid credentials');
+      setCaptchaToken(null);
     } finally {
       setLoading(false);
     }
@@ -99,8 +108,16 @@ export default function Login() {
           }
         />
 
+        {captchaRequired && (
+          <CapCaptcha
+            onSolve={setCaptchaToken}
+            onError={() => setCaptchaToken(null)}
+            onReset={() => setCaptchaToken(null)}
+          />
+        )}
+
         <button
-          disabled={loading}
+          disabled={loading || (captchaRequired && !captchaToken)}
           className="group relative mt-2 flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-md bg-discord font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-white transition active:scale-[0.99] disabled:opacity-50"
         >
           <span className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />

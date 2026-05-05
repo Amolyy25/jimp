@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowUpRight, Loader2, AtSign, Eye, EyeOff, Check } from 'lucide-react';
 import AuthLayout from '../components/AuthLayout.jsx';
+import CapCaptcha from '../components/CapCaptcha.jsx';
 import { Field, ErrorBanner, DiscordButton, Divider } from './Login.jsx';
 import { register } from '../utils/api.js';
+import { isCaptchaEnabled } from '../utils/captcha.js';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -11,18 +13,25 @@ export default function Register() {
   const [error, setError] = useState('');
   const [revealPw, setRevealPw] = useState(false);
   const [formData, setFormData] = useState({ username: '', email: '', password: '' });
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const captchaRequired = isCaptchaEnabled();
 
   const strength = useMemo(() => scorePassword(formData.password), [formData.password]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (captchaRequired && !captchaToken) {
+      setError('Captcha invalide');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
-      await register(formData.username, formData.email, formData.password);
+      await register(formData.username, formData.email, formData.password, captchaToken);
       navigate('/editor');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed.');
+      setCaptchaToken(null);
     } finally {
       setLoading(false);
     }
@@ -94,8 +103,22 @@ export default function Register() {
           <PasswordStrength score={strength} />
         </div>
 
+        {captchaRequired && (
+          <CapCaptcha
+            onSolve={setCaptchaToken}
+            onError={() => setCaptchaToken(null)}
+            onReset={() => setCaptchaToken(null)}
+          />
+        )}
+
         <button
-          disabled={loading || strength < 2 || !formData.username || !formData.email}
+          disabled={
+            loading ||
+            strength < 2 ||
+            !formData.username ||
+            !formData.email ||
+            (captchaRequired && !captchaToken)
+          }
           className="group relative mt-2 flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-md bg-discord font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-white transition active:scale-[0.99] disabled:opacity-40 disabled:grayscale"
         >
           <span className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />

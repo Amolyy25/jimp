@@ -13,10 +13,11 @@
  *      • identical hashes survive only ~24h (block expires automatically)
  *      • without the server's JWT_SECRET an attacker can't reverse a hash
  *      • we never persist IPs in clear, anywhere
- *  - **Bot fill-in** → hCaptcha invisible verification. Optional — only
- *    enforced when HCAPTCHA_SECRET is configured. Client passes a token in
- *    `X-Captcha-Token`; we verify against hcaptcha.com and reject 403 on
- *    failure. When not configured, we skip verification (dev/preview).
+ *  - **Bot fill-in** → CAP captcha (SHA-256 PoW). Optional — only enforced
+ *    when CAP_ENABLED=true. Client solves a challenge via @cap.js/widget,
+ *    redeems it for a token, and submits the token in `captcha` (or the
+ *    `X-Captcha-Token` header). When CAP_ENABLED is unset, we skip
+ *    verification (dev/preview).
  *
  * Privacy:
  *  - No IP, no UA, no email persisted.
@@ -30,6 +31,7 @@
 import crypto from 'node:crypto';
 import { hasProfanity } from './profanity.js';
 import { createRateLimiter } from './rateLimit.js';
+import { verifyCaptchaToken } from './cap.js';
 
 const BODY_MAX = 500;
 const ANSWER_MAX = 1000;
@@ -73,26 +75,6 @@ function askerHashFor(req, slug) {
     .slice(0, 32); // 128 bits is plenty for collision resistance here
 }
 
-/** Verify an hCaptcha token. Returns true when the captcha layer is not
- *  configured (dev / preview), which is the documented behaviour. */
-async function verifyCaptcha(token) {
-  const secret = process.env.HCAPTCHA_SECRET;
-  if (!secret) return true;
-  if (!token || typeof token !== 'string') return false;
-  try {
-    const r = await fetch('https://hcaptcha.com/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ secret, response: token }),
-    });
-    if (!r.ok) return false;
-    const data = await r.json();
-    return !!data.success;
-  } catch {
-    return false;
-  }
-}
-
 export function registerQuestionRoutes(app, prisma, authenticate, helpers = {}) {
   const writeLimiter = helpers.writeLimiter;
 
@@ -126,7 +108,7 @@ export function registerQuestionRoutes(app, prisma, authenticate, helpers = {}) 
       // Generic message — never reveal which words tripped the filter.
       return res.status(400).json({ error: "Couldn't send. Try rephrasing." });
     }
-    if (!(await verifyCaptcha(captcha))) {
+    if (!(await verifyCaptchaToken(captcha))) {
       return res.status(403).json({ error: 'Captcha check failed. Refresh and try again.' });
     }
 

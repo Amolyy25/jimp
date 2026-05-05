@@ -20,6 +20,8 @@
     "admin:revoke": "node scripts/grant-admin.js --revoke"
   },
   "dependencies": {
+    "@cap.js/server": "^4.0.5",
+    "@cap.js/widget": "^0.1.46",
     "@napi-rs/canvas": "^0.1.99",
     "@prisma/client": "^6.0.0",
     "@supabase/supabase-js": "^2.104.1",
