@@ -1,19 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { listMyQuestions } from '../../utils/api.js';
+import { resolveAccent } from '../../utils/theme.js';
 import { WIDGET_CATALOG } from '../../utils/widgetDefaults.js';
-import WidgetPanel from './WidgetPanel.jsx';
-import StylePanel from './StylePanel.jsx';
+import AnalyticsPanel from './AnalyticsPanel.jsx';
 import BackgroundPanel from './BackgroundPanel.jsx';
-import MusicPanel from './MusicPanel.jsx';
 import ColorInput from './controls/ColorInput.jsx';
 import SliderInput from './controls/SliderInput.jsx';
 import TextInput from './controls/TextInput.jsx';
-import VanityUrlPanel from './VanityUrlPanel.jsx';
-import TemplatesPanel from './TemplatesPanel.jsx';
-import AnalyticsPanel from './AnalyticsPanel.jsx';
 import InboxPanel from './InboxPanel.jsx';
-import { resolveAccent } from '../../utils/theme.js';
-import { listMyQuestions } from '../../utils/api.js';
+import MusicPanel from './MusicPanel.jsx';
+import StylePanel from './StylePanel.jsx';
+import TemplatesPanel from './TemplatesPanel.jsx';
+import VanityUrlPanel from './VanityUrlPanel.jsx';
+import WidgetPanel from './WidgetPanel.jsx';
 
 /**
  * Right-hand editor sidebar.
@@ -51,11 +51,11 @@ export default function Sidebar({
   return (
     <aside className="flex h-screen w-[380px] flex-col border-l border-white/5 bg-ink-900">
       {selectedIds && selectedIds.length > 1 ? (
-        <MultiSelectView 
+        <MultiSelectView
           profile={profile}
-          selectedIds={selectedIds} 
-          onGroup={() => onGroupWidgets(selectedIds)} 
-          onBack={() => onSelectWidget(null)} 
+          selectedIds={selectedIds}
+          onGroup={() => onGroupWidgets(selectedIds)}
+          onBack={() => onSelectWidget(null)}
         />
       ) : selectedWidget ? (
         <WidgetView
@@ -123,8 +123,8 @@ function MultiSelectView({ profile, selectedIds, onGroup, onBack }) {
           {hasGroup ? 'Ajouter au groupe' : 'Créer un groupe'}
         </button>
         <p className="mt-4 text-[11px] leading-relaxed text-white/40">
-          {hasGroup 
-            ? 'Les widgets sélectionnés seront ajoutés au groupe existant et le conteneur s\'adaptera à leur taille.' 
+          {hasGroup
+            ? 'Les widgets sélectionnés seront ajoutés au groupe existant et le conteneur s\'adaptera à leur taille.'
             : 'Grouper ces widgets les fusionnera dans un conteneur déplaçable. Vous pourrez ensuite activer l\'effet 3D ou définir une bordure globale.'}
         </p>
       </div>
@@ -354,7 +354,7 @@ function ThemeSection({ theme, onChange }) {
         min={0}
         max={1}
         step={0.01}
-        value={theme?.widgetGlowIntensity ?? 0.35}
+        value={theme?.widgetGlowIntensity ?? 0.00}
         onChange={(v) => onChange({ widgetGlowIntensity: v })}
         format={(v) => `${Math.round(v * 100)}%`}
       />
