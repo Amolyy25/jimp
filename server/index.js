@@ -54,7 +54,7 @@ import {
   isStrongEnoughPassword,
   approxJsonBytes,
 } from './validate.js';
-import { generateVerificationToken, sendVerificationEmail } from './mailer.js';
+import { generateVerificationToken, sendVerificationEmail, sendPasswordResetEmail } from './mailer.js';
 import { clientIp } from './rateLimit.js';
 import { notifyNewUser, notifyReport } from './webhooks.js';
 
@@ -179,6 +179,12 @@ const ingestLimiter = createRateLimiter({
   max: 200,
   bucket: 'ingest',
   message: 'Too many analytics events.',
+});
+const passwordResetLimiter = createRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 5,
+  bucket: 'passwordReset',
+  message: 'Too many password reset attempts. Try again later.',
 });
 
 // Apply the global limiter to /api/* (skips static assets + SPA fallback).
@@ -350,6 +356,79 @@ app.post('/api/auth/resend-verification', authLimiter, authenticate, async (req,
   } catch (err) {
     console.error('[resend-verification]', err);
     res.status(500).json({ error: 'Failed to resend verification email' });
+  }
+});
+
+app.post('/api/auth/forgot-password', passwordResetLimiter, async (req, res) => {
+  const SUCCESS = { success: true, message: "Si un compte existe pour cet email, un lien a été envoyé." };
+  const { email } = req.body || {};
+
+  if (!email || typeof email !== 'string' || !isEmail(email)) {
+    return res.json(SUCCESS);
+  }
+
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+    // No account, no password (Discord-only), or banned — silently skip.
+    if (!user || !user.password || user.isBanned) return res.json(SUCCESS);
+
+    // Anti-spam: don't re-generate if a token was issued less than 2 minutes ago.
+    if (user.passwordResetTokenExpiry) {
+      const twoMinLeft = new Date(Date.now() + 58 * 60 * 1000);
+      if (user.passwordResetTokenExpiry > twoMinLeft) return res.json(SUCCESS);
+    }
+
+    const token = generateVerificationToken();
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordResetToken: token, passwordResetTokenExpiry: expiry },
+    });
+
+    sendPasswordResetEmail(normalizedEmail, token).catch((err) => {
+      console.error('[forgot-password] email error:', err.message);
+    });
+
+    return res.json(SUCCESS);
+  } catch (err) {
+    console.error('[forgot-password]', err);
+    return res.json(SUCCESS);
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+  if (!isStrongEnoughPassword(password)) {
+    return res.status(400).json({ error: 'Password must be 8–128 characters' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { passwordResetToken: token } });
+
+    if (!user || !user.passwordResetTokenExpiry || user.passwordResetTokenExpiry < new Date()) {
+      return res.status(400).json({ error: 'Lien invalide ou expiré' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetTokenExpiry: null,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[reset-password]', err);
+    res.status(500).json({ error: 'Reset failed' });
   }
 });
 

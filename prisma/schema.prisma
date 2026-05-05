@@ -37,6 +37,10 @@ model User {
   emailVerified       Boolean   @default(false)
   emailVerifyToken    String?   @unique
 
+  // Password reset flow
+  passwordResetToken       String?   @unique
+  passwordResetTokenExpiry DateTime?
+
   // Spotify — optional. When present, the /api/spotify/now-playing/:userId
   // endpoint can stream live playback into the viewer's profile.
   spotifyAccessToken  String?

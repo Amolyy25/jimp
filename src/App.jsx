@@ -13,6 +13,8 @@ const Analytique = lazy(() => import('./pages/Analytique.jsx'));
 const Explore = lazy(() => import('./pages/Explore.jsx'));
 const Clicker = lazy(() => import('./pages/Clicker.jsx'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail.jsx'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword.jsx'));
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
         <Route path="/explore" element={<Explore />} />
         <Route path="/clicker" element={<Clicker />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/view" element={<View />} />
         <Route path="/:slug" element={<View />} />
         <Route path="*" element={<Navigate to="/" replace />} />
