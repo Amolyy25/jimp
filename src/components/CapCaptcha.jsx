@@ -28,11 +28,18 @@ export default function CapCaptcha({ onSolve, onError, onReset, className = '' }
     const el = ref.current;
     if (!el) return undefined;
     const handleSolve = (e) => {
+      console.log('[CapCaptcha] solve event:', e.detail);
       const token = e.detail?.token;
       if (token) onSolve?.(token);
     };
-    const handleError = (e) => onError?.(e.detail);
-    const handleReset = () => onReset?.();
+    const handleError = (e) => {
+      console.error('[CapCaptcha] error event:', e.detail);
+      onError?.(e.detail);
+    };
+    const handleReset = () => {
+      console.log('[CapCaptcha] reset event');
+      onReset?.();
+    };
     el.addEventListener('solve', handleSolve);
     el.addEventListener('error', handleError);
     el.addEventListener('reset', handleReset);

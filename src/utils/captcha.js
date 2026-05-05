@@ -14,7 +14,8 @@
  * solution against `/api/cap/redeem`, and yields a short-lived token.
  */
 
-const CAP_API_ENDPOINT = '/api/cap/';
+const CAP_API_BASE = import.meta.env.PUBLIC_ORIGIN || '/api';
+const CAP_API_ENDPOINT = `${CAP_API_BASE}/cap`;
 
 let widgetModulePromise = null;
 function loadWidgetModule() {
@@ -34,16 +35,29 @@ export function isCaptchaEnabled() {
  * CAP_ENABLED is unset, so the UI can still proceed.
  */
 export async function getCaptchaToken() {
-  if (!isCaptchaEnabled()) return null;
+  if (!isCaptchaEnabled()) {
+    console.log('[captcha] disabled, skipping');
+    return null;
+  }
+  console.log('[captcha] starting solve...');
   try {
     const mod = await loadWidgetModule();
-    const Cap = mod.Cap || mod.default;
-    if (!Cap) {
-      console.warn('[captcha] @cap.js/widget loaded without Cap export');
+    console.log('[captcha] module loaded');
+    const Cap = mod.Cap || mod.default || mod;
+    if (!Cap || typeof Cap !== 'function') {
+      console.warn('[captcha] @cap.js/widget loaded without valid Cap constructor', mod);
       return null;
     }
     const cap = new Cap({ apiEndpoint: CAP_API_ENDPOINT });
-    const { success, token } = await cap.solve();
+    
+    // Add a timeout to solve() to prevent indefinite hanging
+    const solvePromise = cap.solve();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Captcha timeout')), 15000)
+    );
+
+    const { success, token } = await Promise.race([solvePromise, timeoutPromise]);
+    
     if (!success || !token) {
       console.warn('[captcha] solve returned no token');
       return null;

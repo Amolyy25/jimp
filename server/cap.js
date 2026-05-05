@@ -26,7 +26,7 @@ function getCap() {
 }
 
 export function isCapEnabled() {
-  return process.env.CAP_ENABLED === 'true';
+  return process.env.CAP_ENABLED === 'true' || process.env.CAP_ENABLED === true;
 }
 
 /** Returns true when verification passes OR the captcha layer is off. */
@@ -43,12 +43,17 @@ export async function verifyCaptchaToken(token) {
 }
 
 export function registerCapRoutes(app) {
-  if (!isCapEnabled()) return;
   const cap = getCap();
 
   app.post('/api/cap/challenge', async (_req, res) => {
+    console.log('[cap] POST /api/cap/challenge');
+    if (!isCapEnabled()) {
+      console.warn('[cap] challenge requested but CAP_ENABLED is false');
+      return res.status(503).json({ error: 'Captcha disabled on server' });
+    }
     try {
       const challenge = await cap.createChallenge();
+      console.log('[cap] challenge created:', challenge.token);
       res.json(challenge);
     } catch (err) {
       console.error('[cap] createChallenge failed:', err);
@@ -57,11 +62,17 @@ export function registerCapRoutes(app) {
   });
 
   app.post('/api/cap/redeem', async (req, res) => {
+    console.log('[cap] POST /api/cap/redeem', req.body?.token);
+    if (!isCapEnabled()) {
+      console.warn('[cap] redeem requested but CAP_ENABLED is false');
+      return res.status(503).json({ error: 'Captcha disabled on server' });
+    }
     try {
       const result = await cap.redeemChallenge({
         token: req.body?.token,
         solutions: req.body?.solutions,
       });
+      console.log('[cap] redeem result:', result.success ? 'OK' : 'FAIL', result.message || '');
       res.json(result);
     } catch (err) {
       console.error('[cap] redeemChallenge failed:', err);
