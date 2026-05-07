@@ -16,30 +16,36 @@ import { useIsMobile } from '../hooks/useIsMobile.js';
 import {
   makeDefaultProfile,
   makeWidgetInstance,
+  WIDGET_CATALOG,
 } from '../utils/widgetDefaults.js';
 import { encodeProfile } from '../utils/encode.js';
 import { getDiscordImport, getMe, getMyProfile, logout, saveProfile } from '../utils/api.js';
 import { resolveAccent } from '../utils/theme.js';
 import HistoryDrawer from '../components/editor/HistoryDrawer.jsx';
 import TemplateConfirmModal from '../components/editor/TemplateConfirmModal.jsx';
+import Coachmarks from '../components/editor/Coachmarks.jsx';
 import logo from '../image/logo.jpeg';
 import axios from 'axios';
-import { 
-  AlertCircle, 
-  Mail, 
-  Loader2, 
-  Check, 
-  ArrowRight, 
-  Sparkles, 
-  MousePointer, 
-  Laptop,
-  X
+import {
+  AlertCircle,
+  Mail,
+  Loader2,
+  Check,
+  AlertTriangle,
+  RotateCcw,
+  Eye as EyeIcon,
+  Share2,
+  History as HistoryIcon,
+  Undo2,
+  Lightbulb,
+  X as XIcon,
 } from 'lucide-react';
-import { TEMPLATES } from '../utils/templates.js';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const STORAGE_KEY = 'persn:profile';
 const AUTOSAVE_DEBOUNCE_MS = 5000;
+const WIDGET_LABEL = Object.fromEntries(
+  Object.values(WIDGET_CATALOG).map((d) => [d.type, d.label]),
+);
 
 /**
  * Editor page.
@@ -569,27 +575,89 @@ export default function Editor() {
   /* Render                                                                */
   /* -------------------------------------------------------------------- */
 
-  // Onboarding flow
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // Progressive coachmarks — non-blocking guided tour. Shown once per user
+  // (or once per anonymous session) on first visit; can be re-triggered from
+  // the welcome card in the sidebar.
+  const [showCoachmarks, setShowCoachmarks] = useState(false);
+  const coachmarksKey = me ? `persn:coachmarks:v1:${me.id}` : 'persn:coachmarks:v1:anon';
   useEffect(() => {
-    if (hydrated && me && !serverSlug) {
-      const hasSeen = localStorage.getItem(`persn:onboarding:${me.id}`);
-      if (!hasSeen) {
-        setShowOnboarding(true);
-      }
-    }
-  }, [hydrated, me, serverSlug]);
+    if (!hydrated) return;
+    if (!localStorage.getItem(coachmarksKey)) setShowCoachmarks(true);
+  }, [hydrated, coachmarksKey]);
 
-  const handleCompleteOnboarding = () => {
-    setShowOnboarding(false);
-    if (me) localStorage.setItem(`persn:onboarding:${me.id}`, '1');
-  };
+  const handleCoachmarksDone = useCallback(() => {
+    setShowCoachmarks(false);
+    localStorage.setItem(coachmarksKey, '1');
+  }, [coachmarksKey]);
 
-  const handleApplyOnboardingTemplate = (templateProfile) => {
-    setProfile(templateProfile);
-    setSaveStatus('dirty');
-    handleCompleteOnboarding();
-  };
+  const startTour = useCallback(() => {
+    setSidebarSection('widgets');
+    setSelectedIds([]);
+    setShowCoachmarks(true);
+  }, []);
+
+  // Reset confirmation — replaces the native confirm() prompt with a custom
+  // modal that matches the editor's visual language.
+  const [resetOpen, setResetOpen] = useState(false);
+  const requestReset = useCallback(() => setResetOpen(true), []);
+  const confirmReset = useCallback(() => {
+    setProfile(makeDefaultProfile());
+    setSelectedIds([]);
+    setResetOpen(false);
+  }, [setProfile]);
+
+  // Undo toast — used by widget delete (and other reversible destructive ops)
+  // to skip a confirm dialog while still giving users an out.
+  const [undo, setUndo] = useState(null); // { message, run, expiresAt }
+  const undoTimerRef = useRef(null);
+
+  const requestUndoableDelete = useCallback(
+    (id) => {
+      const widget = profile.widgets.find((w) => w.id === id);
+      if (!widget) return;
+      const snapshot = profile;
+      removeWidget(id);
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      const label = WIDGET_LABEL[widget.type] || 'Widget';
+      setUndo({
+        message: `${label} supprimé`,
+        run: () => {
+          setProfile(snapshot);
+          setUndo(null);
+          if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        },
+      });
+      undoTimerRef.current = setTimeout(() => setUndo(null), 5000);
+    },
+    [profile, removeWidget, setProfile],
+  );
+
+  useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  }, []);
+
+  // Group + 3D hover tip — surfaces a small non-blocking hint after the user
+  // has spent a few minutes in the editor, since Alt-click multi-select isn't
+  // discoverable on its own. Persisted per-user (or per-anon) so it never
+  // re-fires once acknowledged.
+  const [showGroupTip, setShowGroupTip] = useState(false);
+  const groupTipKey = me ? `persn:tip:groups:v1:${me.id}` : 'persn:tip:groups:v1:anon';
+  const altKeyLabel = useMemo(() => {
+    if (typeof navigator === 'undefined') return 'Alt';
+    return /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'Option' : 'Alt';
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    if (showCoachmarks) return; // don't pile hints on top of the tour
+    if (localStorage.getItem(groupTipKey)) return;
+    const id = setTimeout(() => setShowGroupTip(true), 3 * 60_000);
+    return () => clearTimeout(id);
+  }, [hydrated, showCoachmarks, groupTipKey]);
+
+  const dismissGroupTip = useCallback(() => {
+    setShowGroupTip(false);
+    localStorage.setItem(groupTipKey, '1');
+  }, [groupTipKey]);
 
   // Modals are rendered for both layouts.
   const modals = (
@@ -653,7 +721,7 @@ export default function Editor() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-ink-950 text-white">
-      <main className="relative flex-1">
+      <main className="relative flex-1" data-coachmark="canvas-area">
         <VerificationBanner user={me} />
         <TopBar
           me={me}
@@ -666,7 +734,7 @@ export default function Editor() {
             setSelectedIds([]);
           }}
           onPreview={openPreview}
-          onReset={resetProfile}
+          onReset={requestReset}
           onLogout={handleLogout}
           onOpenHistory={() => setHistoryOpen(true)}
         />
@@ -681,16 +749,18 @@ export default function Editor() {
           />
         </MusicPlayer>
 
-        {showOnboarding && (
-          <OnboardingModal
-            onComplete={handleCompleteOnboarding}
-            onApplyTemplate={handleApplyOnboardingTemplate}
-          />
-        )}
+        {showCoachmarks && <Coachmarks onDone={handleCoachmarksDone} />}
+
         {toast && (
           <div className="pointer-events-none absolute left-1/2 top-6 z-50 -translate-x-1/2 rounded-full border border-white/10 bg-ink-800/90 px-4 py-2 text-xs font-medium shadow-xl backdrop-blur">
             {toast.message}
           </div>
+        )}
+
+        {undo && <UndoToast message={undo.message} onUndo={undo.run} />}
+
+        {showGroupTip && (
+          <TipToast shortcut={altKeyLabel} onClose={dismissGroupTip} />
         )}
       </main>
 
@@ -709,7 +779,7 @@ export default function Editor() {
           })
         }
         onAddWidget={addWidget}
-        onRemoveWidget={removeWidget}
+        onRemoveWidget={requestUndoableDelete}
         onUpdateTheme={updateTheme}
         onUpdateBackground={updateBackground}
         onUpdateMusic={updateMusic}
@@ -721,9 +791,23 @@ export default function Editor() {
         onApplyTemplate={(tpl) => setPendingTemplate(tpl)}
         serverSlug={serverSlug}
         onOpenHistory={() => setHistoryOpen(true)}
+        onStartTour={startTour}
       />
 
       {modals}
+      {resetOpen && (
+        <ConfirmModal
+          icon={<AlertTriangle className="h-5 w-5 text-red-400" />}
+          tone="danger"
+          eyebrow="Action irréversible"
+          title="Réinitialiser le profil ?"
+          body="Tous tes widgets, ton thème, ta musique et ton arrière-plan seront remis aux valeurs par défaut. Tu garderas ton compte et ton URL."
+          confirmLabel="Tout réinitialiser"
+          cancelLabel="Annuler"
+          onConfirm={confirmReset}
+          onCancel={() => setResetOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -771,35 +855,40 @@ function TopBar({
 
       <div className="pointer-events-auto flex items-center gap-2">
         {me && hasServerProfile && (
-          <button
-            type="button"
+          <IconTextButton
             onClick={onOpenHistory}
-            className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white/60 transition hover:bg-white/10 hover:text-white"
-            title="Restore a previous save"
+            icon={<HistoryIcon className="h-3.5 w-3.5" />}
+            tooltip="Restaurer une sauvegarde précédente"
           >
-            History
-          </button>
+            Historique
+          </IconTextButton>
         )}
-        <button
-          type="button"
+        <IconTextButton
           onClick={onReset}
-          className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white/60 transition hover:bg-white/10 hover:text-white"
+          icon={<RotateCcw className="h-3.5 w-3.5" />}
+          tooltip="Tout réinitialiser"
+          tone="danger"
         >
           Reset
-        </button>
-        <button
-          type="button"
+        </IconTextButton>
+        <span className="mx-1 h-5 w-px bg-white/10" aria-hidden />
+        <IconTextButton
           onClick={onPreview}
-          className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
+          icon={<EyeIcon className="h-3.5 w-3.5" />}
+          tooltip="Ouvrir la prévisualisation"
+          dataCoachmark="topbar-preview"
         >
-          Preview
-        </button>
+          Aperçu
+        </IconTextButton>
         <button
           type="button"
           onClick={onOpenShare}
-          className="group relative overflow-hidden rounded-full bg-discord px-5 py-2 text-xs font-semibold text-white shadow-[0_0_30px_rgba(88,101,242,0.35)] transition hover:brightness-110"
+          data-coachmark="topbar-share"
+          title={me ? 'Publier / partager ton profil' : 'Génère un lien partageable'}
+          className="group relative flex items-center gap-1.5 overflow-hidden rounded-full bg-discord px-5 py-2 text-xs font-semibold text-white shadow-[0_0_30px_rgba(88,101,242,0.35)] transition hover:brightness-110"
         >
-          {me ? 'Share' : 'Generate link'}
+          <Share2 className="h-3.5 w-3.5" />
+          {me ? 'Partager' : 'Générer le lien'}
         </button>
 
         {me ? (
@@ -814,6 +903,27 @@ function TopBar({
         )}
       </div>
     </div>
+  );
+}
+
+function IconTextButton({ onClick, icon, children, tooltip, tone, dataCoachmark }) {
+  const danger = tone === 'danger';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={tooltip}
+      data-coachmark={dataCoachmark}
+      className={[
+        'flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium transition',
+        danger
+          ? 'border-white/10 bg-white/[0.04] text-white/55 hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-200'
+          : 'border-white/10 bg-white/[0.04] text-white/75 hover:bg-white/10 hover:text-white',
+      ].join(' ')}
+    >
+      {icon}
+      <span>{children}</span>
+    </button>
   );
 }
 
@@ -986,128 +1096,150 @@ function AccountChip({ user, onLogout }) {
   );
 }
 
-function OnboardingModal({ onComplete, onApplyTemplate }) {
-  const [step, setStep] = useState(0); // 0: Welcome, 1: Templates, 2: Tutorial
+/* -------------------------------------------------------------------------- */
+/* ConfirmModal — reusable destructive confirmation modal                     */
+/* -------------------------------------------------------------------------- */
 
-  const steps = [
-    {
-      title: "Bienvenue sur persn.me",
-      subtitle: "Crée ton profil unique en quelques secondes. Exprime ta créativité sans aucune limite.",
-      icon: <Sparkles className="h-6 w-6 text-discord" />,
-      button: "C'est parti !",
-      content: (
-        <div className="relative mt-8 aspect-video overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
-            <div className="mb-4 h-20 w-20 rounded-full bg-discord/20 flex items-center justify-center">
-               <div className="h-12 w-12 rounded-full bg-discord flex items-center justify-center text-white font-black text-2xl">P</div>
-            </div>
-            <div className="max-w-xs space-y-2">
-               <div className="h-2 w-24 mx-auto rounded-full bg-white/10" />
-               <div className="h-2 w-32 mx-auto rounded-full bg-white/5" />
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      title: "Choisis un point de départ",
-      subtitle: "Sélectionne un modèle pour commencer, ou pars d'une page blanche.",
-      icon: <Laptop className="h-6 w-6 text-discord" />,
-      button: "Passer cette étape",
-      content: (
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          {TEMPLATES.slice(0, 4).map((tpl) => (
-            <button
-              key={tpl.id}
-              onClick={() => onApplyTemplate(tpl.profile)}
-              className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] text-left transition hover:border-discord/50 hover:bg-white/[0.06]"
-            >
-              <div 
-                className="aspect-video w-full transition group-hover:scale-105" 
-                style={{ background: tpl.thumbnailGradient || '#222' }}
-              />
-              <div className="p-3">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-white/90">{tpl.name}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: "Comment ça marche ?",
-      subtitle: "L'éditeur est un canevas libre. Tout est modifiable.",
-      icon: <MousePointer className="h-6 w-6 text-discord" />,
-      button: "Terminer",
-      content: (
-        <div className="mt-8 space-y-4">
-          {[
-            { icon: "🎯", text: "Glisse et dépose les éléments où tu veux." },
-            { icon: "🎨", text: "Thèmes, couleurs et effets dynamiques." },
-            { icon: "🎵", text: "Musique de fond et vidéos YouTube en arrière-plan." }
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-              <span className="text-2xl">{item.icon}</span>
-              <span className="text-sm text-white/70">{item.text}</span>
-            </div>
-          ))}
-        </div>
-      )
-    }
-  ];
+function ConfirmModal({
+  icon,
+  eyebrow,
+  title,
+  body,
+  confirmLabel,
+  cancelLabel = 'Annuler',
+  tone = 'danger',
+  onConfirm,
+  onCancel,
+}) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter') onConfirm();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel, onConfirm]);
 
-  const current = steps[step];
+  const confirmCls =
+    tone === 'danger'
+      ? 'bg-red-500 text-white shadow-[0_0_30px_rgba(248,113,113,0.35)] hover:brightness-110'
+      : 'bg-discord text-white shadow-[0_0_30px_rgba(88,101,242,0.35)] hover:brightness-110';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative w-full max-w-xl overflow-hidden rounded-[32px] border border-white/10 bg-ink-950 p-8 shadow-2xl lg:p-12"
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="w-[420px] max-w-[90vw] rounded-2xl border border-white/10 bg-ink-900 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
-        <button 
-          onClick={onComplete}
-          className="absolute right-6 top-6 text-white/20 transition hover:text-white"
-        >
-          <X className="h-6 w-6" />
-        </button>
-
-        <div className="flex flex-col items-center text-center">
-          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-discord/10">
-            {current.icon}
+        <div className="flex items-start gap-3">
+          {icon && (
+            <div
+              className={[
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                tone === 'danger' ? 'bg-red-500/10' : 'bg-discord/10',
+              ].join(' ')}
+            >
+              {icon}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            {eyebrow && (
+              <div
+                className={[
+                  'eyebrow',
+                  tone === 'danger' ? 'text-red-400' : 'text-discord',
+                ].join(' ')}
+              >
+                {eyebrow}
+              </div>
+            )}
+            <h2 className="mt-1 text-lg font-bold tracking-tight">{title}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/60">{body}</p>
           </div>
-          <h2 className="text-3xl font-bold tracking-tight text-white lg:text-4xl">
-            {current.title}
-          </h2>
-          <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/40">
-            {current.subtitle}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={[
+              'rounded-full px-5 py-2 text-xs font-semibold transition',
+              confirmCls,
+            ].join(' ')}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* UndoToast — non-blocking reversible-action notice                          */
+/* -------------------------------------------------------------------------- */
+
+function TipToast({ shortcut, onClose }) {
+  // Auto-dismiss after a comfortable read window. The user can also click X.
+  useEffect(() => {
+    const id = setTimeout(onClose, 14_000);
+    return () => clearTimeout(id);
+  }, [onClose]);
+
+  return (
+    <div className="pointer-events-auto absolute bottom-6 left-6 z-40 max-w-[360px] animate-fade-up">
+      <div className="relative flex items-start gap-3 rounded-2xl border border-discord/30 bg-ink-900/95 p-4 shadow-2xl backdrop-blur">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-discord/15">
+          <Lightbulb className="h-4 w-4 text-discord" />
+        </div>
+        <div className="min-w-0 flex-1 pr-4">
+          <div className="eyebrow text-discord">Astuce</div>
+          <p className="mt-1 text-xs leading-relaxed text-white/75">
+            Maintiens{' '}
+            <kbd className="rounded-md border border-white/15 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+              {shortcut}
+            </kbd>{' '}
+            et clique deux widgets pour les grouper. Active ensuite l'effet 3D
+            au survol depuis l'onglet Style.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fermer l'astuce"
+          className="absolute right-2 top-2 rounded-full p-1 text-white/30 transition hover:bg-white/10 hover:text-white"
+        >
+          <XIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
-        {current.content}
-
-        <div className="mt-12 flex flex-col items-center gap-4">
-          <button
-            onClick={() => {
-              if (step < steps.length - 1) setStep(step + 1);
-              else onComplete();
-            }}
-            className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-sm font-bold text-black transition hover:scale-105 active:scale-95"
-          >
-            {current.button}
-            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-          </button>
-          
-          <div className="flex gap-2">
-            {steps.map((_, i) => (
-              <div 
-                key={i} 
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-discord' : 'w-1.5 bg-white/10'}`} 
-              />
-            ))}
-          </div>
-        </div>
-      </motion.div>
+function UndoToast({ message, onUndo }) {
+  return (
+    <div className="pointer-events-none absolute bottom-6 left-1/2 z-50 -translate-x-1/2">
+      <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/10 bg-ink-800/95 py-2 pl-4 pr-2 shadow-2xl backdrop-blur">
+        <span className="text-xs font-medium text-white/80">{message}</span>
+        <button
+          type="button"
+          onClick={onUndo}
+          className="flex items-center gap-1.5 rounded-full bg-discord px-3 py-1 text-[11px] font-bold text-white transition hover:brightness-110"
+        >
+          <Undo2 className="h-3 w-3" />
+          Annuler
+        </button>
+      </div>
     </div>
   );
 }

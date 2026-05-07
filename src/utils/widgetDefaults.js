@@ -254,20 +254,30 @@ export function makeDefaultProfile() {
   return {
     version: 2,
     theme: {
-      accent: '#5865F2',
-      pageBg: '#0a0a0a',
-      widgetEntryAnimation: 'fade-up',
+      // Two-tone gradient accent — Discord blue sweeping to magenta pink.
+      // Drives every accent surface (hover glow, slug indicator, splash).
+      accent: { kind: 'gradient', from: '#5865F2', to: '#EC4899', angle: 135 },
+      // Layered backdrop: indigo wash top-left, magenta blush bottom-right,
+      // deep violet-ink base. Reads premium even on a blank canvas.
+      pageBg: [
+        'radial-gradient(ellipse 90% 70% at 18% 0%, rgba(88,101,242,0.32) 0%, transparent 55%)',
+        'radial-gradient(ellipse 80% 60% at 85% 100%, rgba(236,72,153,0.24) 0%, transparent 55%)',
+        'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(168,85,247,0.10) 0%, transparent 60%)',
+        'linear-gradient(180deg, #0b0820 0%, #07051a 50%, #040311 100%)',
+      ].join(', '),
+      entryAnimation: 'blur',          // cinematic page reveal on first paint
+      widgetEntryAnimation: 'fade-up', // each widget fades up in turn
       widgetHover: 'lift',
-      widgetFloat: 'none',
-      widgetSurface: 'none',
+      widgetFloat: 'bob',              // subtle vertical drift, alive but not loud
+      widgetSurface: 'aurora',         // shimmering accent halo behind cards
       widgetParticles: 'none',
-      widgetAccentBar: 'none',
-      widgetGlowIntensity: 0.35,
+      widgetAccentBar: 'top',          // thin gradient stripe at top of each card
+      widgetGlowIntensity: 0.55,
       cursor: 'default',      // 'default' | 'pointer' | 'crosshair' | 'none' | 'custom'
       cursorUrl: '',          // when cursor === 'custom'
-      cursorTrail: 'none',    // 'none' | 'glow' | 'echo' | 'stars' | 'neon' | 'comet' | 'ghost' | 'prism' | 'orbit'
+      cursorTrail: 'glow',    // 'none' | 'glow' | 'echo' | 'stars' | 'neon' | 'comet' | 'ghost' | 'prism' | 'orbit'
       cursorTrailCount: 6,    // used by 'ghost'
-      particles: 'none',      // 'none' | 'snow' | 'stars' | 'dust' | 'confetti'
+      particles: 'dust',      // 'none' | 'snow' | 'stars' | 'dust' | 'confetti'
       splash: {
         enabled: false,
         template: 'classic',
@@ -296,18 +306,39 @@ export function makeDefaultProfile() {
       trackTitle: '',
       artist: '',
     },
-    // Welcome layout: identity column on the left (avatar → badges → socials),
-    // engagement column on the right (Discord servers + games), utility strip
-    // along the bottom (now playing + progress) and a tiny clock top-right.
+    // Centred showcase — identity stack on the canvas centre line (x=50)
+    // with two flanking community widgets and a single music player at the
+    // bottom. Coords are percentages; widgets flagged `autoSize: true`
+    // (badges, socials, discordServers, games) treat `pos` as the centre of
+    // the box, not the top-left.
+    //
+    //   ┌──────────────────────────────────────────────┐
+    //   │                                      [clock] │
+    //   │  ┌─────────┐  ┌──────────┐  ┌─────────────┐  │
+    //   │  │ DISCORD │  │  AVATAR  │  │    GAMES    │  │  showcase row
+    //   │  │ SERVERS │  │ yourname │  │             │  │
+    //   │  └─────────┘  └──────────┘  └─────────────┘  │
+    //   │              [    BADGES    ]                │
+    //   │              [   SOCIALS    ]                │  identity stack
+    //   │           [    musicProgress     ]           │  single music widget
+    //   └──────────────────────────────────────────────┘
+    //
+    // Symmetry contract:
+    //   - avatar visual centre (x=50) == badges/socials autoSize centre
+    //     (x=50) == musicProgress visual centre (x=50)
+    //   - discordServers centre (x=16) and games centre (x=84) are mirrored
+    //     either side of x=50 (Δ=34)
     widgets: [
-      placed('avatar',         { x: 6,  y: 10 }, { w: 32, h: 38 }),
-      placed('badges',         { x: 22, y: 56 }, { w: 32, h: 10 }),
-      placed('socials',        { x: 22, y: 70 }, { w: 38, h: 12 }),
-      placed('discordServers', { x: 72, y: 30 }, { w: 44, h: 40 }),
-      placed('games',          { x: 72, y: 70 }, { w: 50, h: 32 }),
-      placed('clock',          { x: 84, y: 5  }, { w: 12, h: 7  }),
-      placed('nowPlaying',     { x: 4,  y: 88 }, { w: 28, h: 9  }),
-      placed('musicProgress',  { x: 36, y: 88 }, { w: 30, h: 9  }),
+      placed('clock',           { x: 86, y: 5  }, { w: 10, h: 7  }),
+
+      placed('discordServers',  { x: 16, y: 36 }, { w: 28, h: 28 }),
+      placed('avatar',          { x: 34, y: 18 }, { w: 32, h: 32 }),
+      placed('games',           { x: 84, y: 36 }, { w: 28, h: 28 }),
+
+      placed('badges',          { x: 50, y: 56 }, { w: 32, h: 8  }),
+      placed('socials',         { x: 50, y: 68 }, { w: 32, h: 10 }),
+
+      placed('musicProgress',   { x: 30, y: 80 }, { w: 40, h: 10 }),
     ],
   };
 }

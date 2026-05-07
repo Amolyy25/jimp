@@ -119,10 +119,17 @@ export const SOCIALS = [
     placeholder: 'yourhandle',
     href: (h) => `https://paypal.me/${h.replace(/^@/, '')}`,
     svg: (
-      <path
-        d="M7.4 21.5H4.8a.55.55 0 0 1-.55-.65l2.6-16.5A.8.8 0 0 1 7.65 3.7h6.27c2.07 0 3.55.43 4.4 1.27.78.79 1.04 1.85.86 3.16-.04.27-.1.55-.18.84a5.7 5.7 0 0 1-1.95 3.04c-.95.74-2.16 1.12-3.59 1.12h-1.1c-.4 0-.74.29-.8.68l-.96 6.07a.55.55 0 0 1-.55.65H7.4Zm6.4-15.4h-3.4l-.97 6.13h1.55c1.05 0 1.86-.23 2.43-.7.58-.46.96-1.16 1.13-2.07.16-.94.02-1.61-.41-2.04-.46-.45-1.21-.66-2.26-.66Z"
-        fill="currentColor"
-      />
+      <>
+        <path
+          d="M9.6 21.5H7a.55.55 0 0 1-.55-.65L9.05 4.35a.8.8 0 0 1 .8-.65h6.27c2.07 0 3.55.43 4.4 1.27.78.79 1.04 1.85.86 3.16a8.2 8.2 0 0 1-.18.84 5.7 5.7 0 0 1-1.95 3.04c-.95.74-2.16 1.12-3.59 1.12h-1.1a.8.8 0 0 0-.8.68l-.96 6.07a.55.55 0 0 1-.55.65H9.6Zm6.4-15.4H12.6l-.97 6.13h1.55c1.05 0 1.86-.23 2.43-.7.58-.46.96-1.16 1.13-2.07.16-.94.02-1.61-.41-2.04-.46-.45-1.21-.66-2.33-.66Z"
+          fill="#003087"
+        />
+        <path
+          d="M6.4 21.5H3.8a.55.55 0 0 1-.55-.65l2.6-16.5a.8.8 0 0 1 .8-.65h6.27c2.07 0 3.55.43 4.4 1.27.78.79 1.04 1.85.86 3.16a8.2 8.2 0 0 1-.18.84 5.7 5.7 0 0 1-1.95 3.04c-.95.74-2.16 1.12-3.59 1.12h-1.1a.8.8 0 0 0-.8.68l-.96 6.07a.55.55 0 0 1-.55.65H6.4Z"
+          fill="#0070BA"
+          opacity="0.85"
+        />
+      </>
     ),
   },
   {
@@ -151,8 +158,11 @@ export const SOCIALS = [
     href: null,
     svg: (
       <>
-        <path d="M12 2 6 12.3l6 3.6 6-3.6L12 2Z" fill="currentColor" opacity="0.85" />
-        <path d="m6 13.5 6 3.6 6-3.6L12 22 6 13.5Z" fill="currentColor" />
+        <path d="M12 2 6 12.4l6 3.5V2Z" fill="#627EEA" opacity="0.6" />
+        <path d="M12 2v13.9l6-3.5L12 2Z" fill="#627EEA" />
+        <path d="M12 17.2 6 13.7l6 8.3V17.2Z" fill="#627EEA" opacity="0.6" />
+        <path d="M12 22v-4.8l6-3.5L12 22Z" fill="#627EEA" opacity="0.45" />
+        <path d="m6 12.4 6 3.5 6-3.5-6-2.7-6 2.7Z" fill="#627EEA" opacity="0.8" />
       </>
     ),
   },
@@ -165,9 +175,16 @@ export const SOCIALS = [
     href: null,
     svg: (
       <>
-        <path d="M5 7.5h12l2-2.5H7L5 7.5Z" fill="currentColor" />
-        <path d="M5 13.25h12l2-2.5H7L5 13.25Z" fill="currentColor" />
-        <path d="M5 19h12l2-2.5H7L5 19Z" fill="currentColor" />
+        <defs>
+          <linearGradient id="sol-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#9945FF" />
+            <stop offset="50%" stopColor="#14F195" />
+            <stop offset="100%" stopColor="#00FFA3" />
+          </linearGradient>
+        </defs>
+        <path d="M5 7.5h12l2-2.5H7L5 7.5Z" fill="url(#sol-grad)" />
+        <path d="M5 13.25h12l2-2.5H7L5 13.25Z" fill="url(#sol-grad)" />
+        <path d="M5 19h12l2-2.5H7L5 19Z" fill="url(#sol-grad)" />
       </>
     ),
   },

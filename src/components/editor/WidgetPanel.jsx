@@ -295,15 +295,21 @@ function BadgesForm({ data, onUpdate }) {
 
 function SocialsForm({ data, onUpdate }) {
   const links = data.links || {};
-  const hidden = new Set(data.hidden || []);
   const actions = data.actions || {};
 
-  const toggleHidden = (id) => {
-    const next = new Set(hidden);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    onUpdate({ hidden: Array.from(next) });
-  };
+  // Migration — older profiles relied on a `hidden` array to hide socials
+  // while keeping their value. The new UX only uses emptiness as the
+  // visibility signal, so the flag is no longer expressive. We clear the
+  // values for any legacy-hidden entries (preserving "not visible") and
+  // drop the flag so the editor and renderer stay in sync.
+  useEffect(() => {
+    const legacy = data.hidden;
+    if (!legacy || legacy.length === 0) return;
+    const nextLinks = { ...links };
+    for (const id of legacy) delete nextLinks[id];
+    onUpdate({ links: nextLinks, hidden: [] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleAction = (id) => {
     const next = { ...actions };
@@ -311,22 +317,51 @@ function SocialsForm({ data, onUpdate }) {
     onUpdate({ actions: next });
   };
 
+  const setLink = (id, value) =>
+    onUpdate({ links: { ...links, [id]: value } });
+
+  const clearLink = (id) => {
+    const next = { ...links };
+    delete next[id];
+    onUpdate({ links: next });
+  };
+
+  // Sort filled rows first so the active socials stay at the top of the
+  // list — visually reflects what the visitor will see.
+  const sorted = [...SOCIALS].sort((a, b) => {
+    const aFilled = !!(links[a.id] || '').trim();
+    const bFilled = !!(links[b.id] || '').trim();
+    if (aFilled === bFilled) return 0;
+    return aFilled ? -1 : 1;
+  });
+
+  const filledCount = SOCIALS.filter((s) => (links[s.id] || '').trim()).length;
+
   return (
     <div className="space-y-3">
-      {SOCIALS.map((s) => {
-        const isHidden = hidden.has(s.id);
+      <div className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-[11px] leading-relaxed text-white/55">
+        <span className="font-semibold text-white/80">{filledCount}</span>{' '}
+        {filledCount > 1 ? 'liens visibles' : 'lien visible'}. Remplis un champ
+        pour l'afficher, vide-le pour le masquer.
+      </div>
+
+      {sorted.map((s) => {
+        const value = links[s.id] || '';
+        const filled = !!value.trim();
         const action = actions[s.id] || (s.copy ? 'copy' : 'link');
         return (
           <div
             key={s.id}
             className={[
-              'rounded-xl border border-white/5 bg-white/[0.02] p-3 transition',
-              isHidden ? 'opacity-40' : '',
+              'rounded-xl border p-3 transition',
+              filled
+                ? 'border-white/10 bg-white/[0.04]'
+                : 'border-white/5 bg-white/[0.015] opacity-70 hover:opacity-100',
             ].join(' ')}
           >
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-6 w-6 items-center justify-center">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="relative inline-flex h-6 w-6 items-center justify-center">
                   <svg
                     width="16"
                     height="16"
@@ -336,33 +371,57 @@ function SocialsForm({ data, onUpdate }) {
                   >
                     {s.svg}
                   </svg>
+                  <span
+                    aria-hidden
+                    className={[
+                      'absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-ink-900',
+                      filled ? 'bg-green-400' : 'bg-white/20',
+                    ].join(' ')}
+                  />
                 </span>
-                <span className="text-xs font-semibold">{s.label}</span>
+                <span className="truncate text-xs font-semibold">
+                  {s.label}
+                </span>
+                <span
+                  className={[
+                    'rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest',
+                    filled
+                      ? 'bg-green-400/10 text-green-300'
+                      : 'bg-white/5 text-white/40',
+                  ].join(' ')}
+                >
+                  {filled ? 'Visible' : 'Vide'}
+                </span>
               </div>
-              <div className="flex items-center gap-3">
-                {s.href && (
+              <div className="flex items-center gap-2">
+                {s.href && filled && (
                   <button
                     type="button"
                     onClick={() => toggleAction(s.id)}
-                    className="eyebrow text-discord/80 transition hover:text-discord"
+                    title="Comportement au clic"
+                    className="rounded-full border border-discord/30 bg-discord/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-discord transition hover:bg-discord/20"
                   >
-                    {action === 'copy' ? 'Action: Copy' : 'Action: Link'}
+                    {action === 'copy' ? 'Copier' : 'Lien'}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => toggleHidden(s.id)}
-                  className="eyebrow text-white/50 transition hover:text-white"
-                >
-                  {isHidden ? 'Show' : 'Hide'}
-                </button>
+                {filled && (
+                  <button
+                    type="button"
+                    onClick={() => clearLink(s.id)}
+                    title="Vider et masquer"
+                    aria-label="Vider et masquer"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-white/30 transition hover:bg-red-500/15 hover:text-red-300"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M6 6l12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
             <input
-              value={links[s.id] || ''}
-              onChange={(e) =>
-                onUpdate({ links: { ...links, [s.id]: e.target.value } })
-              }
+              value={value}
+              onChange={(e) => setLink(s.id, e.target.value)}
               placeholder={s.placeholder}
               className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/90 outline-none focus:border-discord"
             />

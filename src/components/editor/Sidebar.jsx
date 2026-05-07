@@ -1,5 +1,21 @@
-import { ChevronLeft, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import {
+  ChevronLeft,
+  ChevronDown,
+  Trash2,
+  Layers,
+  LayoutTemplate,
+  Palette,
+  Image as ImageIcon,
+  Music2,
+  Inbox as InboxIcon,
+  BarChart3,
+  Share2,
+  Sparkles,
+  Plus,
+  X,
+  Compass,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { listMyQuestions } from '../../utils/api.js';
 import { resolveAccent } from '../../utils/theme.js';
 import { WIDGET_CATALOG } from '../../utils/widgetDefaults.js';
@@ -47,6 +63,7 @@ export default function Sidebar({
   onApplyTemplate,
   serverSlug,
   onOpenHistory,
+  onStartTour,
 }) {
   return (
     <aside className="flex h-screen w-[380px] flex-col border-l border-white/5 bg-ink-900">
@@ -85,6 +102,7 @@ export default function Sidebar({
           onApplyTemplate={onApplyTemplate}
           serverSlug={serverSlug}
           onOpenHistory={onOpenHistory}
+          onStartTour={onStartTour}
         />
       )}
     </aside>
@@ -152,6 +170,7 @@ function GlobalView({
   onApplyTemplate,
   serverSlug,
   onOpenHistory,
+  onStartTour,
 }) {
   const hasQAWidget = !!profile?.widgets?.some((w) => w.type === 'qa');
 
@@ -171,24 +190,24 @@ function GlobalView({
     };
   }, [me, serverSlug]);
 
+  const sectionMeta = SECTION_META[section] || SECTION_META.widgets;
+
   return (
     <>
-      <SidebarHeader title="Profile">
-        <p className="mt-1 text-xs text-white/40">
-          Pick a section. Click any widget on the canvas to edit it directly.
-        </p>
+      <SidebarHeader title={sectionMeta.title}>
+        <p className="mt-1 text-xs text-white/45">{sectionMeta.subtitle}</p>
       </SidebarHeader>
 
       <SectionTabs
         sections={[
-          { id: 'widgets', label: 'Widgets' },
-          { id: 'templates', label: 'Templates' },
-          { id: 'background', label: 'Background' },
-          { id: 'music', label: 'Music' },
-          { id: 'theme', label: 'Theme' },
-          { id: 'inbox', label: 'Inbox', badge: pendingCount },
-          { id: 'analytics', label: 'Analytics' },
-          { id: 'share', label: 'Share' },
+          { id: 'widgets', label: 'Widgets', icon: Layers },
+          { id: 'templates', label: 'Modèles', icon: LayoutTemplate },
+          { id: 'theme', label: 'Thème', icon: Palette },
+          { id: 'background', label: 'Décor', icon: ImageIcon },
+          { id: 'music', label: 'Musique', icon: Music2 },
+          { id: 'inbox', label: 'Messages', icon: InboxIcon, badge: pendingCount },
+          { id: 'analytics', label: 'Stats', icon: BarChart3 },
+          { id: 'share', label: 'Publier', icon: Share2 },
         ]}
         active={section}
         onChange={onSectionChange}
@@ -198,10 +217,13 @@ function GlobalView({
         {section === 'widgets' && (
           <WidgetListSection
             profile={profile}
+            me={me}
             onSelectWidget={onSelectWidget}
             onToggleWidget={onToggleWidget}
             onAddWidget={onAddWidget}
             onRemoveWidget={onRemoveWidget}
+            onSectionChange={onSectionChange}
+            onStartTour={onStartTour}
           />
         )}
         {section === 'templates' && (
@@ -237,90 +259,283 @@ function GlobalView({
   );
 }
 
-function ThemeSection({ theme, onChange }) {
-  const cursor = theme?.cursor || 'default';
+const SECTION_META = {
+  widgets: {
+    title: 'Widgets',
+    subtitle: 'Ajoute, ordonne et masque les éléments de ton profil.',
+  },
+  templates: {
+    title: 'Modèles',
+    subtitle: 'Pars d\'un design pré-fait. Tu pourras tout personnaliser ensuite.',
+  },
+  theme: {
+    title: 'Thème',
+    subtitle: 'Couleur d\'accent, animations, curseur, particules.',
+  },
+  background: {
+    title: 'Décor',
+    subtitle: 'Image, vidéo ou couleur en arrière-plan de la page.',
+  },
+  music: {
+    title: 'Musique',
+    subtitle: 'Spotify, lien direct ou fichier. Lecteur visible côté visiteur.',
+  },
+  inbox: {
+    title: 'Messages',
+    subtitle: 'Questions reçues sur le widget Q&R. À répondre ou masquer.',
+  },
+  analytics: {
+    title: 'Statistiques',
+    subtitle: 'Visites, sources et widgets les plus cliqués.',
+  },
+  share: {
+    title: 'Publier',
+    subtitle: 'Réserve ton URL persn.me/ton-nom et partage ton profil.',
+  },
+};
 
-  const handleCursorUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await fileToDataURL(file);
-    onChange({ cursor: 'custom', cursorUrl: dataUrl });
-  };
+/**
+ * Theme settings are organised as collapsible groups, each with a master
+ * toggle (when applicable) that drives the underlying values to a sensible
+ * default or zeroes them out.
+ *
+ * The "active" state of every group is derived from the current theme blob
+ * — never stored separately — so applying a template (which patches theme
+ * directly) automatically lights up the matching toggles without extra
+ * bookkeeping.
+ */
+function ThemeSection({ theme, onChange }) {
+  return (
+    <div className="space-y-3">
+      <ColorsGroup theme={theme} onChange={onChange} />
+      <EntryAnimsGroup theme={theme} onChange={onChange} />
+      <HoverFloatGroup theme={theme} onChange={onChange} />
+      <VisualEffectsGroup theme={theme} onChange={onChange} />
+      <CursorGroup theme={theme} onChange={onChange} />
+      <PageParticlesGroup theme={theme} onChange={onChange} />
+      <ParallaxGroup theme={theme} onChange={onChange} />
+      <SplashGroup theme={theme} onChange={onChange} />
+      <AdvancedGroup theme={theme} onChange={onChange} />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------- */
+/* Group shell — collapsible card with optional master toggle           */
+/* -------------------------------------------------------------------- */
+
+function GroupShell({
+  title,
+  subtitle,
+  active,
+  onToggleActive,
+  alwaysOn = false,
+  defaultOpen = false,
+  children,
+}) {
+  const [open, setOpen] = useState(active || defaultOpen);
+  // When the group becomes active (e.g. via a template), auto-expand. We
+  // never auto-collapse on deactivation so the user keeps visibility into
+  // their settings while toggling on/off.
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active]);
 
   return (
-    <div className="space-y-4">
-      <AccentEditor accent={theme?.accent} onChange={(v) => onChange({ accent: v })} />
+    <section className="overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
+      <div className="flex items-stretch gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex flex-1 min-w-0 items-start gap-2 px-4 py-3 text-left transition hover:bg-white/[0.03]"
+        >
+          <ChevronDown
+            className={[
+              'mt-0.5 h-3.5 w-3.5 shrink-0 text-white/40 transition-transform',
+              open ? 'rotate-0' : '-rotate-90',
+            ].join(' ')}
+          />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-white">{title}</span>
+              {!alwaysOn && active && (
+                <span className="rounded-full bg-discord/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-discord">
+                  Actif
+                </span>
+              )}
+            </div>
+            {subtitle && (
+              <div className="mt-0.5 text-[10px] leading-snug text-white/40">
+                {subtitle}
+              </div>
+            )}
+          </div>
+        </button>
+        {!alwaysOn && (
+          <div className="flex items-center pr-3">
+            <Toggle checked={!!active} onChange={onToggleActive} />
+          </div>
+        )}
+      </div>
+      {open && (
+        <div className="space-y-3 border-t border-white/5 px-4 pb-4 pt-3">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------- */
+/* Individual groups                                                     */
+/* -------------------------------------------------------------------- */
+
+function ColorsGroup({ theme, onChange }) {
+  return (
+    <GroupShell
+      title="Couleurs"
+      subtitle="Accent et arrière-plan de page"
+      alwaysOn
+      defaultOpen
+    >
+      <AccentEditor
+        accent={theme?.accent}
+        onChange={(v) => onChange({ accent: v })}
+      />
       <ColorInput
-        label="Page background"
+        label="Couleur de fond"
         value={theme?.pageBg}
         onChange={(v) => onChange({ pageBg: v })}
       />
       <p className="text-[11px] leading-relaxed text-white/40">
-        Accent is used for pulses, hovers and highlights. Page background only
-        shows through when no image/video background is set.
+        L'accent pilote pulses, halos et highlights. La couleur de fond ne
+        s'affiche que sans image/vidéo de fond.
       </p>
+    </GroupShell>
+  );
+}
 
-      <div className="border-t border-white/5" />
-
+function EntryAnimsGroup({ theme, onChange }) {
+  const active =
+    (theme?.entryAnimation && theme.entryAnimation !== 'none') ||
+    (theme?.widgetEntryAnimation && theme.widgetEntryAnimation !== 'none');
+  const setActive = (v) => {
+    if (v) onChange({ entryAnimation: 'fade', widgetEntryAnimation: 'fade-up' });
+    else onChange({ entryAnimation: 'none', widgetEntryAnimation: 'none' });
+  };
+  return (
+    <GroupShell
+      title="Animations d'entrée"
+      subtitle="Comment la page et les widgets apparaissent"
+      active={active}
+      onToggleActive={setActive}
+    >
       <TextInput
-        label="Entry Animation"
+        label="Page"
         value={theme?.entryAnimation || 'none'}
         onChange={(v) => onChange({ entryAnimation: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'fade', label: 'Fade In' },
-          { value: 'slide-up', label: 'Slide Up' },
-          { value: 'scale', label: 'Scale In' },
-          { value: 'blur', label: 'Blur In' },
+          { value: 'none', label: 'Aucune' },
+          { value: 'fade', label: 'Fondu' },
+          { value: 'slide-up', label: 'Glissement haut' },
+          { value: 'scale', label: 'Zoom' },
+          { value: 'blur', label: 'Flou' },
         ]}
       />
-
-      <div className="border-t border-white/5" />
-
-      <h3 className="eyebrow">Widgets globaux</h3>
       <TextInput
-        label="Widget entry animation"
+        label="Widgets"
         value={theme?.widgetEntryAnimation || 'fade-up'}
         onChange={(v) => onChange({ widgetEntryAnimation: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'fade-up', label: 'Fade Up' },
-          { value: 'fade-in', label: 'Fade In' },
-          { value: 'zoom-in', label: 'Zoom In' },
-          { value: 'slide-right', label: 'Slide Right' },
-          { value: 'slide-left', label: 'Slide Left' },
-          { value: 'flip-in', label: 'Flip In' },
-          { value: 'bounce', label: 'Bounce' },
+          { value: 'none', label: 'Aucune' },
+          { value: 'fade-up', label: 'Fondu haut' },
+          { value: 'fade-in', label: 'Fondu' },
+          { value: 'zoom-in', label: 'Zoom' },
+          { value: 'slide-right', label: 'Glissement droite' },
+          { value: 'slide-left', label: 'Glissement gauche' },
+          { value: 'flip-in', label: 'Flip' },
+          { value: 'bounce', label: 'Rebond' },
         ]}
       />
+    </GroupShell>
+  );
+}
+
+function HoverFloatGroup({ theme, onChange }) {
+  const active =
+    (theme?.widgetHover && theme.widgetHover !== 'none') ||
+    (theme?.widgetFloat && theme.widgetFloat !== 'none');
+  const setActive = (v) => {
+    if (v) onChange({ widgetHover: 'lift', widgetFloat: 'bob' });
+    else onChange({ widgetHover: 'none', widgetFloat: 'none' });
+  };
+  return (
+    <GroupShell
+      title="Survol & flottement"
+      subtitle="Réactions aux mouvements et drift continu"
+      active={active}
+      onToggleActive={setActive}
+    >
       <TextInput
-        label="Widget hover effect"
-        value={theme?.widgetHover || 'lift'}
+        label="Au survol"
+        value={theme?.widgetHover || 'none'}
         onChange={(v) => onChange({ widgetHover: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'lift', label: 'Lift' },
-          { value: 'tilt', label: 'Tilt' },
-          { value: 'pulse', label: 'Pulse' },
-          { value: 'glow', label: 'Glow' },
+          { value: 'none', label: 'Aucun' },
+          { value: 'lift', label: 'Soulèvement' },
+          { value: 'tilt', label: 'Inclinaison' },
+          { value: 'pulse', label: 'Pulsation' },
+          { value: 'glow', label: 'Halo' },
         ]}
       />
       <TextInput
-        label="Widget float motion"
+        label="Flottement continu"
         value={theme?.widgetFloat || 'none'}
         onChange={(v) => onChange({ widgetFloat: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'bob', label: 'Bob' },
-          { value: 'drift', label: 'Drift' },
+          { value: 'none', label: 'Aucun' },
+          { value: 'bob', label: 'Oscillation' },
+          { value: 'drift', label: 'Dérive' },
         ]}
       />
+    </GroupShell>
+  );
+}
+
+function VisualEffectsGroup({ theme, onChange }) {
+  const active =
+    (theme?.widgetSurface && theme.widgetSurface !== 'none') ||
+    (theme?.widgetParticles && theme.widgetParticles !== 'none') ||
+    (theme?.widgetAccentBar && theme.widgetAccentBar !== 'none') ||
+    (theme?.widgetGlowIntensity ?? 0) > 0;
+  const setActive = (v) => {
+    if (v)
+      onChange({
+        widgetSurface: 'aurora',
+        widgetAccentBar: 'top',
+        widgetGlowIntensity: 0.5,
+      });
+    else
+      onChange({
+        widgetSurface: 'none',
+        widgetParticles: 'none',
+        widgetAccentBar: 'none',
+        widgetGlowIntensity: 0,
+      });
+  };
+  return (
+    <GroupShell
+      title="Effets visuels widgets"
+      subtitle="Halo, surface, liserés, particules"
+      active={active}
+      onToggleActive={setActive}
+    >
       <TextInput
-        label="Widget surface overlay"
+        label="Surface"
         value={theme?.widgetSurface || 'none'}
         onChange={(v) => onChange({ widgetSurface: v })}
         options={[
-          { value: 'none', label: 'None' },
+          { value: 'none', label: 'Aucune' },
           { value: 'aurora', label: 'Aurora' },
           { value: 'scanlines', label: 'Scanlines' },
           { value: 'spotlight', label: 'Spotlight' },
@@ -328,234 +543,270 @@ function ThemeSection({ theme, onChange }) {
         ]}
       />
       <TextInput
-        label="Widget particles"
+        label="Particules"
         value={theme?.widgetParticles || 'none'}
         onChange={(v) => onChange({ widgetParticles: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'sparkles', label: 'Sparkles' },
-          { value: 'orbs', label: 'Orbs' },
+          { value: 'none', label: 'Aucune' },
+          { value: 'sparkles', label: 'Étincelles' },
+          { value: 'orbs', label: 'Orbes' },
         ]}
       />
       <TextInput
-        label="Widget accent bar"
+        label="Liseré accent"
         value={theme?.widgetAccentBar || 'none'}
         onChange={(v) => onChange({ widgetAccentBar: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'top', label: 'Top' },
-          { value: 'bottom', label: 'Bottom' },
-          { value: 'left', label: 'Left' },
-          { value: 'right', label: 'Right' },
+          { value: 'none', label: 'Aucun' },
+          { value: 'top', label: 'Haut' },
+          { value: 'bottom', label: 'Bas' },
+          { value: 'left', label: 'Gauche' },
+          { value: 'right', label: 'Droite' },
         ]}
       />
       <SliderInput
-        label="Widget glow intensity"
+        label="Intensité du halo"
         min={0}
         max={1}
         step={0.01}
-        value={theme?.widgetGlowIntensity ?? 0.00}
+        value={theme?.widgetGlowIntensity ?? 0}
         onChange={(v) => onChange({ widgetGlowIntensity: v })}
         format={(v) => `${Math.round(v * 100)}%`}
       />
-      <p className="text-[11px] leading-relaxed text-white/40">
-        These settings act like a global art direction layer on top of your
-        widget cards and also show up in the editor preview.
-      </p>
+    </GroupShell>
+  );
+}
 
-      <div className="border-t border-white/5" />
-
+function CursorGroup({ theme, onChange }) {
+  const cursor = theme?.cursor || 'default';
+  const active =
+    cursor !== 'default' ||
+    (theme?.cursorTrail && theme.cursorTrail !== 'none');
+  const setActive = (v) => {
+    if (v) onChange({ cursorTrail: 'glow' });
+    else
+      onChange({
+        cursor: 'default',
+        cursorUrl: '',
+        cursorTrail: 'none',
+      });
+  };
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await fileToDataURL(file);
+    onChange({ cursor: 'custom', cursorUrl: dataUrl });
+  };
+  return (
+    <GroupShell
+      title="Curseur"
+      subtitle="Style du curseur et traînée"
+      active={active}
+      onToggleActive={setActive}
+    >
       <TextInput
-        label="Cursor"
+        label="Curseur"
         value={cursor}
         onChange={(v) => onChange({ cursor: v })}
         options={[
-          { value: 'default', label: 'Default' },
-          { value: 'pointer', label: 'Pointer (hand)' },
-          { value: 'crosshair', label: 'Crosshair' },
-          { value: 'none', label: 'None (hidden)' },
-          { value: 'custom', label: 'Custom image' },
+          { value: 'default', label: 'Par défaut' },
+          { value: 'pointer', label: 'Main' },
+          { value: 'crosshair', label: 'Croix' },
+          { value: 'none', label: 'Caché' },
+          { value: 'custom', label: 'Image personnalisée' },
         ]}
       />
       {cursor === 'custom' && (
         <>
           <TextInput
-            label="Cursor image URL"
+            label="URL de l'image"
             value={theme?.cursorUrl}
             onChange={(v) => onChange({ cursorUrl: v })}
-            placeholder="https://… (32×32 png ideal)"
+            placeholder="https://… (32×32 png idéal)"
           />
           <label className="block space-y-1.5">
-            <span className="eyebrow">…or upload</span>
+            <span className="eyebrow">…ou upload</span>
             <input
               type="file"
               accept="image/png, image/gif, image/svg+xml"
-              onChange={handleCursorUpload}
+              onChange={handleUpload}
               className="block w-full text-xs text-white/60 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-white/20"
             />
           </label>
-          <p className="text-[11px] leading-relaxed text-white/40">
-            Browsers require small, square images (ideally 32×32 PNG). The hot
-            spot is anchored near the top-left.
-          </p>
         </>
       )}
-
-      <div className="border-t border-white/5" />
-
       <TextInput
-        label="Cursor trail"
+        label="Traînée"
         value={theme?.cursorTrail || 'none'}
         onChange={(v) => onChange({ cursorTrail: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'glow', label: 'Glow (accent)' },
-          { value: 'echo', label: 'Echo (pulse rings)' },
-          { value: 'stars', label: 'Stars (sparkle)' },
-          { value: 'neon', label: 'Neon (laser line)' },
-          { value: 'comet', label: 'Comet (bright tail)' },
-          { value: 'ghost', label: 'Ghost (cursor clones)' },
-          { value: 'prism', label: 'Prism (RGB split)' },
-          { value: 'orbit', label: 'Orbit (satellites)' },
+          { value: 'none', label: 'Aucune' },
+          { value: 'glow', label: 'Halo (accent)' },
+          { value: 'echo', label: 'Echo' },
+          { value: 'stars', label: 'Étoiles' },
+          { value: 'neon', label: 'Néon' },
+          { value: 'comet', label: 'Comète' },
+          { value: 'ghost', label: 'Fantômes' },
+          { value: 'prism', label: 'Prisme RGB' },
+          { value: 'orbit', label: 'Orbite' },
         ]}
       />
       {theme?.cursorTrail === 'ghost' && (
         <SliderInput
-          label="Ghost clone count"
+          label="Nombre de fantômes"
           min={2}
           max={20}
           step={1}
           value={theme?.cursorTrailCount ?? 6}
-          onChange={(v) => onChange({ cursorTrailCount: Math.round(v) })}
+          onChange={(v) =>
+            onChange({ cursorTrailCount: Math.round(v) })
+          }
         />
       )}
+    </GroupShell>
+  );
+}
 
+function PageParticlesGroup({ theme, onChange }) {
+  const active = theme?.particles && theme.particles !== 'none';
+  const setActive = (v) => onChange({ particles: v ? 'dust' : 'none' });
+  return (
+    <GroupShell
+      title="Particules de page"
+      subtitle="Ambient flottant en arrière-plan"
+      active={!!active}
+      onToggleActive={setActive}
+    >
       <TextInput
-        label="Particles"
+        label="Type"
         value={theme?.particles || 'none'}
         onChange={(v) => onChange({ particles: v })}
         options={[
-          { value: 'none', label: 'None' },
-          { value: 'snow', label: 'Snow' },
-          { value: 'stars', label: 'Stars' },
-          { value: 'dust', label: 'Dust (accent)' },
+          { value: 'none', label: 'Aucune' },
+          { value: 'snow', label: 'Neige' },
+          { value: 'stars', label: 'Étoiles' },
+          { value: 'dust', label: 'Poussière (accent)' },
           { value: 'confetti', label: 'Confetti' },
         ]}
       />
-      <p className="text-[11px] leading-relaxed text-white/40">
-        Ambient effects only run on desktop viewers and respect{' '}
+      <p className="text-[10px] leading-relaxed text-white/40">
+        Désactivé sur mobile et si le visiteur a{' '}
         <code>prefers-reduced-motion</code>.
       </p>
+    </GroupShell>
+  );
+}
 
-      <div className="border-t border-white/5" />
+function ParallaxGroup({ theme, onChange }) {
+  const active = !!theme?.parallaxEnabled;
+  const setActive = (v) => onChange({ parallaxEnabled: v });
+  return (
+    <GroupShell
+      title="Parallaxe 3D"
+      subtitle="La page suit le curseur du visiteur"
+      active={active}
+      onToggleActive={setActive}
+    >
+      <p className="text-[11px] leading-relaxed text-white/45">
+        Active une légère inclinaison des widgets selon la position de la
+        souris. Effet désactivé sur mobile.
+      </p>
+    </GroupShell>
+  );
+}
 
-      <h3 className="eyebrow">Effets de page</h3>
-      <ToggleRow
-        title="Effet Parallax 3D"
-        subtitle="La page réagit au mouvement de la souris du visiteur"
-        checked={!!theme?.parallaxEnabled}
-        onChange={(v) => onChange({ parallaxEnabled: v })}
-      />
-
-      <div className="border-t border-white/5" />
-
-      <h3 className="eyebrow">Splash / Enter screen</h3>
-      <ToggleRow
-        title="Enable splash gate"
-        subtitle="Show a click-to-enter screen before revealing the profile. Also unlocks music autoplay."
-        checked={!!theme?.splash?.enabled}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), enabled: v } })
-        }
-      />
+function SplashGroup({ theme, onChange }) {
+  const splash = theme?.splash || {};
+  const active = !!splash.enabled;
+  const setActive = (v) => onChange({ splash: { ...splash, enabled: v } });
+  const patch = (p) => onChange({ splash: { ...splash, ...p } });
+  return (
+    <GroupShell
+      title="Écran d'entrée"
+      subtitle="Click-to-enter avant la révélation du profil"
+      active={active}
+      onToggleActive={setActive}
+    >
       <TextInput
-        label="Splash template"
-        value={theme?.splash?.template || 'classic'}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), template: v } })
-        }
+        label="Modèle"
+        value={splash.template || 'classic'}
+        onChange={(v) => patch({ template: v })}
         options={[
-          { value: 'classic', label: 'Classic' },
+          { value: 'classic', label: 'Classique' },
           { value: 'terminal', label: 'Terminal' },
           { value: 'spotlight', label: 'Spotlight' },
           { value: 'arcade', label: 'Arcade' },
         ]}
       />
       <TextInput
-        label="Splash text"
-        value={theme?.splash?.text || ''}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), text: v } })
-        }
+        label="Texte principal"
+        value={splash.text || ''}
+        onChange={(v) => patch({ text: v })}
         placeholder="Click to enter"
         maxLength={40}
         filter
       />
       <TextInput
-        label="Splash badge"
-        value={theme?.splash?.badge || ''}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), badge: v } })
-        }
+        label="Badge"
+        value={splash.badge || ''}
+        onChange={(v) => patch({ badge: v })}
         placeholder="Enter profile"
         maxLength={40}
         filter
       />
       <TextInput
-        label="Splash subtitle (optional)"
-        value={theme?.splash?.subtitle || ''}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), subtitle: v } })
-        }
+        label="Sous-titre (optionnel)"
+        value={splash.subtitle || ''}
+        onChange={(v) => patch({ subtitle: v })}
         placeholder="A tiny tagline, if you like"
         maxLength={80}
         filter
       />
       <TextInput
-        label="Splash hint"
-        value={theme?.splash?.hint || ''}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), hint: v } })
-        }
+        label="Indication"
+        value={splash.hint || ''}
+        onChange={(v) => patch({ hint: v })}
         placeholder="Click anywhere"
         maxLength={40}
         filter
       />
       <SliderInput
-        label="Splash intensity"
+        label="Intensité"
         min={0}
         max={100}
         step={1}
-        value={theme?.splash?.intensity ?? 60}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), intensity: Math.round(v) } })
-        }
+        value={splash.intensity ?? 60}
+        onChange={(v) => patch({ intensity: Math.round(v) })}
         unit="%"
       />
       <ToggleRow
-        title="Show splash grid"
-        subtitle="Adds a subtle grid texture behind the splash content"
-        checked={theme?.splash?.showGrid ?? true}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), showGrid: v } })
-        }
+        title="Grille de fond"
+        subtitle="Texture quadrillée derrière le contenu"
+        checked={splash.showGrid ?? true}
+        onChange={(v) => patch({ showGrid: v })}
       />
       <ToggleRow
-        title="Show splash footer"
-        subtitle="Display the tiny persn.me footer on the gate"
-        checked={theme?.splash?.showFooter ?? true}
-        onChange={(v) =>
-          onChange({ splash: { ...(theme?.splash || {}), showFooter: v } })
-        }
+        title="Footer persn.me"
+        subtitle="Affiche le petit footer en bas"
+        checked={splash.showFooter ?? true}
+        onChange={(v) => patch({ showFooter: v })}
       />
+    </GroupShell>
+  );
+}
 
-      <div className="border-t border-white/5" />
-
+function AdvancedGroup({ theme, onChange }) {
+  return (
+    <GroupShell
+      title="Avancé"
+      subtitle="CSS personnalisé scoped au profil"
+      alwaysOn
+    >
       <CustomCssEditor
         value={theme?.customCss || ''}
         onChange={(v) => onChange({ customCss: v })}
       />
-    </div>
+    </GroupShell>
   );
 }
 
@@ -751,23 +1002,44 @@ function ToggleRow({ title, subtitle, checked, onChange }) {
 
 function WidgetListSection({
   profile,
+  me,
   onSelectWidget,
   onToggleWidget,
   onAddWidget,
   onRemoveWidget,
+  onSectionChange,
+  onStartTour,
 }) {
   const [adderOpen, setAdderOpen] = useState(false);
+  const widgetCount = profile.widgets.length;
+  const isEmpty = widgetCount === 0;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <WelcomeCard
+        me={me}
+        onChooseTemplate={() => onSectionChange?.('templates')}
+        onAddWidget={() => setAdderOpen(true)}
+        onStartTour={onStartTour}
+      />
+
       <div className="flex items-center justify-between">
-        <span className="eyebrow">Active widgets</span>
+        <span className="eyebrow">
+          {isEmpty ? 'Aucun widget' : `${widgetCount} widget${widgetCount > 1 ? 's' : ''}`}
+        </span>
         <button
           type="button"
           onClick={() => setAdderOpen((v) => !v)}
-          className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white/70 transition hover:bg-white/10 hover:text-white"
+          data-coachmark="add-widget"
+          className={[
+            'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition',
+            adderOpen
+              ? 'border border-white/15 bg-white/10 text-white'
+              : 'bg-discord text-white shadow-[0_0_18px_rgba(88,101,242,0.3)] hover:brightness-110',
+          ].join(' ')}
         >
-          {adderOpen ? 'Close' : '+ Add'}
+          {adderOpen ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+          {adderOpen ? 'Fermer' : 'Ajouter'}
         </button>
       </div>
 
@@ -790,50 +1062,155 @@ function WidgetListSection({
         </div>
       )}
 
-      <ul className="space-y-1.5">
-        {profile.widgets.map((w) => (
-          <li key={w.id}>
-            <div
-              className={[
-                'group flex items-center gap-2 rounded-xl border border-transparent bg-white/[0.02] px-3 py-2.5 transition',
-                'hover:border-white/10 hover:bg-white/[0.05]',
-                w.visible === false ? 'opacity-40' : '',
-              ].join(' ')}
+      {isEmpty && !adderOpen ? (
+        <EmptyWidgetState
+          onAdd={() => setAdderOpen(true)}
+          onChooseTemplate={() => onSectionChange?.('templates')}
+        />
+      ) : (
+        <ul className="space-y-1.5">
+          {profile.widgets.map((w) => (
+            <li key={w.id}>
+              <div
+                className={[
+                  'group flex items-center gap-2 rounded-xl border border-transparent bg-white/[0.02] px-3 py-2.5 transition',
+                  'hover:border-white/10 hover:bg-white/[0.05]',
+                  w.visible === false ? 'opacity-40' : '',
+                ].join(' ')}
+              >
+                <button
+                  type="button"
+                  onClick={() => onSelectWidget(w.id)}
+                  className="flex flex-1 items-center gap-2 text-left"
+                >
+                  <span className="text-base">{widgetEmoji(w.type)}</span>
+                  <span className="truncate text-xs font-medium text-white/90">
+                    {WIDGET_CATALOG[w.type]?.label || w.type}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onToggleWidget(w.id)}
+                  className="rounded-full p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white"
+                  title={w.visible === false ? 'Afficher' : 'Masquer'}
+                  aria-label={w.visible === false ? 'Afficher' : 'Masquer'}
+                >
+                  {w.visible === false ? <EyeOff /> : <Eye />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onRemoveWidget(w.id)}
+                  className="rounded-full p-1.5 text-white/40 transition hover:bg-red-500/20 hover:text-red-300"
+                  title="Supprimer"
+                  aria-label="Supprimer"
+                >
+                  <Trash />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function EmptyWidgetState({ onAdd, onChooseTemplate }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-5 py-8 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-discord/15">
+        <Layers className="h-4 w-4 text-discord" />
+      </div>
+      <div>
+        <h4 className="text-sm font-semibold text-white">Aucun widget pour l'instant</h4>
+        <p className="mt-1 text-[11px] leading-relaxed text-white/45">
+          Démarre avec un modèle prêt à l'emploi ou ajoute tes premiers widgets.
+        </p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-1.5 pt-1">
+        <button
+          type="button"
+          onClick={onChooseTemplate}
+          className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/80 transition hover:bg-white/10"
+        >
+          Voir les modèles
+        </button>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex items-center gap-1 rounded-full bg-discord px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-[0_0_18px_rgba(88,101,242,0.3)] transition hover:brightness-110"
+        >
+          <Plus className="h-3 w-3" />
+          Ajouter un widget
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WelcomeCard({ me, onChooseTemplate, onAddWidget, onStartTour }) {
+  const storageKey = me ? `persn:welcome:dismissed:${me.id}` : 'persn:welcome:dismissed:anon';
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return !!window.localStorage.getItem(storageKey);
+  });
+  if (dismissed) return null;
+
+  const dismiss = () => {
+    window.localStorage.setItem(storageKey, '1');
+    setDismissed(true);
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-discord/30 bg-gradient-to-br from-discord/15 via-discord/5 to-transparent p-4">
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Masquer ce panneau"
+        className="absolute right-2.5 top-2.5 rounded-full p-1 text-white/30 transition hover:bg-white/10 hover:text-white"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-discord/25">
+          <Sparkles className="h-4 w-4 text-discord" />
+        </div>
+        <div className="min-w-0 flex-1 pr-4">
+          <h3 className="text-sm font-bold text-white">Bienvenue !</h3>
+          <p className="mt-1 text-[11px] leading-relaxed text-white/65">
+            Lance-toi avec un modèle, ajoute tes propres widgets, ou suis le tour rapide.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={onChooseTemplate}
+              className="rounded-full bg-discord px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-[0_0_18px_rgba(88,101,242,0.3)] transition hover:brightness-110"
             >
+              Choisir un modèle
+            </button>
+            <button
+              type="button"
+              onClick={onAddWidget}
+              className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/85 transition hover:bg-white/10"
+            >
+              <Plus className="h-3 w-3" />
+              Widget
+            </button>
+            {onStartTour && (
               <button
                 type="button"
-                onClick={() => onSelectWidget(w.id)}
-                className="flex flex-1 items-center gap-2 text-left"
+                onClick={onStartTour}
+                className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/85 transition hover:bg-white/10"
               >
-                <span className="text-base">{widgetEmoji(w.type)}</span>
-                <span className="truncate text-xs font-medium text-white/90">
-                  {WIDGET_CATALOG[w.type]?.label || w.type}
-                </span>
+                <Compass className="h-3 w-3" />
+                Tour guidé
               </button>
-
-              <button
-                type="button"
-                onClick={() => onToggleWidget(w.id)}
-                className="rounded-full p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white"
-                title={w.visible === false ? 'Show' : 'Hide'}
-              >
-                {w.visible === false ? <EyeOff /> : <Eye />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm('Delete this widget?')) onRemoveWidget(w.id);
-                }}
-                className="rounded-full p-1.5 text-white/40 transition hover:bg-red-500/20 hover:text-red-300"
-                title="Delete"
-              >
-                <Trash />
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -867,9 +1244,9 @@ function WidgetView({ profile, widget, onBack, onRemove, onUpdateData, onUpdateS
             )}
             <button
               type="button"
-              onClick={() => {
-                if (confirm('Delete this widget?')) onRemove();
-              }}
+              onClick={onRemove}
+              title="Supprimer ce widget"
+              aria-label="Supprimer ce widget"
               className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-500/40 transition hover:bg-red-500 hover:text-white"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -913,53 +1290,44 @@ function SidebarHeader({ title, children }) {
 }
 
 function SectionTabs({ sections, active, onChange }) {
-  const scrollRef = useRef(null);
-
-  // Mice only emit `deltaY` on a vertical wheel, so a horizontal overflow
-  // container ignores them by default. Translate vertical wheel into
-  // horizontal scroll so users on a mouse can reach offscreen tabs.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      if (e.deltaY === 0) return;
-      if (el.scrollWidth <= el.clientWidth) return;
-      e.preventDefault();
-      el.scrollLeft += e.deltaY;
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, []);
-
   return (
-    <div ref={scrollRef} className="flex overflow-x-auto scrollbar-hide whitespace-nowrap border-b border-white/5 bg-ink-900 px-2">
+    <div
+      data-coachmark="sidebar-tabs"
+      className="grid grid-cols-4 gap-1 border-b border-white/5 bg-ink-900 p-2"
+    >
       {sections.map((s) => {
         const isActive = s.id === active;
         const hasBadge = Number.isFinite(s.badge) && s.badge > 0;
+        const Icon = s.icon;
         return (
           <button
             key={s.id}
             type="button"
             onClick={() => onChange(s.id)}
+            title={s.label}
             className={[
-              'relative inline-flex shrink-0 items-center gap-1.5 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition',
-              isActive ? 'text-white' : 'text-white/40 hover:text-white/70',
+              'relative flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold transition',
+              isActive
+                ? 'bg-discord/15 text-white ring-1 ring-discord/40'
+                : 'text-white/45 hover:bg-white/5 hover:text-white/80',
             ].join(' ')}
           >
-            {s.label}
+            {Icon && (
+              <Icon
+                className={[
+                  'h-4 w-4 transition',
+                  isActive ? 'text-discord' : 'text-white/50',
+                ].join(' ')}
+              />
+            )}
+            <span className="tracking-tight">{s.label}</span>
             {hasBadge && (
               <span
-                className={[
-                  'inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 font-mono text-[9px] tabular-nums',
-                  isActive ? 'bg-discord text-white' : 'bg-white/10 text-white/70',
-                ].join(' ')}
+                className="absolute right-1 top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-discord px-1 font-mono text-[8px] tabular-nums text-white"
                 aria-label={`${s.badge} pending`}
               >
-                {s.badge > 99 ? '99+' : s.badge}
+                {s.badge > 9 ? '9+' : s.badge}
               </span>
-            )}
-            {isActive && (
-              <span className="absolute -bottom-px left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-discord" />
             )}
           </button>
         );
@@ -1003,19 +1371,22 @@ function BackArrow() {
 function widgetEmoji(type) {
   return (
     {
-      avatar: '👤',
-      badges: '✨',
-      socials: '🔗',
+      avatar: '🧑',
+      badges: '⭐',
+      socials: '🌐',
       discordServers: '💬',
       games: '🎮',
-      clock: '🕒',
-      weather: '⛅',
+      clock: '⏰',
+      weather: '☀️',
       nowPlaying: '🎵',
-      musicProgress: '🎚️',
+      musicProgress: '🎧',
       visitorCounter: '👀',
-      discordPresence: '🟣',
-      twitchStream: '🟪',
-      guestbook: '📝',
-    }[type] || '▫️'
+      discordPresence: '🟢',
+      twitchStream: '📺',
+      guestbook: '📖',
+      qa: '💌',
+      clickerGame: '🍪',
+      group: '🗂️',
+    }[type] || '🧩'
   );
 }
