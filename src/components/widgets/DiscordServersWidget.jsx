@@ -25,7 +25,7 @@ export default function DiscordServersWidget({ widget, accent }) {
           than the container — without it, narrow widgets (mobile stack) push
           horizontal overflow. `minmax(0, 1fr)` on the second arg lets the
           flex children's `truncate` actually clip. */}
-      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(min(140px,100%),1fr))] auto-rows-min gap-2.5 overflow-y-auto overflow-x-hidden thin-scroll px-4 pb-4 justify-items-stretch">
+      <div className="grid w-full grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(min(160px,100%),1fr))] auto-rows-min gap-2.5 overflow-y-auto overflow-x-hidden thin-scroll px-4 pb-4 justify-items-stretch">
         {servers.map((server) => (
           <ServerCard key={server.id} server={server} accent={accentColor} />
         ))}

@@ -151,6 +151,16 @@ export default function View() {
 function ProfileBody({ profile, isMobile, ownerId, slug }) {
   const { playing } = useMusic();
   const visibleWidgets = profile.widgets.filter((w) => w.visible !== false);
+  // Mobile stack respects the editor's Y order (top → bottom), then X as
+  // tiebreaker. Desktop keeps the absolute layout.
+  const mobileWidgets = isMobile
+    ? [...visibleWidgets].sort((a, b) => {
+        const ay = a.pos?.y ?? 0;
+        const by = b.pos?.y ?? 0;
+        if (ay !== by) return ay - by;
+        return (a.pos?.x ?? 0) - (b.pos?.x ?? 0);
+      })
+    : visibleWidgets;
   const entryAnim = profile.theme?.entryAnimation || 'none';
   const animClass = entryAnim !== 'none' ? `animate-entry-${entryAnim}` : '';
 
@@ -230,13 +240,21 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
 
   return (
     <div
-      id="profile-root"
-      ref={rootRef}
-      className={`relative min-h-screen w-full overflow-x-hidden ${animClass}`}
+      className="relative min-h-screen w-full overflow-x-hidden"
       style={{ background: profile.theme?.pageBg || '#0a0a0a' }}
     >
+      {/* Background sits OUTSIDE the animated/parallax root — those layers
+          apply `transform`, which would create a containing block and trap
+          a `position: fixed` child to the scroll height of the content
+          (so the bg gets cropped on scroll). Keeping it as a sibling lets
+          `fixed inset-0` resolve against the actual viewport. */}
       <BackgroundLayer background={profile.background} viewportFixed />
 
+      <div
+        id="profile-root"
+        ref={rootRef}
+        className={`relative min-h-screen w-full overflow-x-hidden ${animClass}`}
+      >
       {/* Scoped custom CSS — only the bytes that survived server sanitization
           end up here, but we still scope to #profile-root so a stray rule
           doesn't leak to /editor. */}
@@ -257,8 +275,8 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
       )}
 
       {isMobile ? (
-        <div className="relative z-10 mx-auto flex max-w-md flex-col gap-5 px-5 py-8 pb-28">
-          {visibleWidgets.map((widget, i) => (
+        <div className="relative z-10 mx-auto flex max-w-md flex-col gap-4 px-4 pt-14 pb-32">
+          {mobileWidgets.map((widget, i) => (
             <WidgetFrame
               key={widget.id}
               widget={widget}
@@ -324,6 +342,7 @@ function ProfileBody({ profile, isMobile, ownerId, slug }) {
 
       <FooterActions accent={accent} slug={slug} />
       <CreateYoursToast accent={accent} accentCss={accentCss} />
+      </div>
     </div>
   );
 }

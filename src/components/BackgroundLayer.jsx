@@ -56,12 +56,14 @@ export default function BackgroundLayer({ background, viewportFixed = false }) {
         </div>
       )}
 
-      {/* Subtle radial vignette — keeps widgets readable no matter the bg */}
+      {/* Light edge vignette only — keeps the user's chosen overlay in
+          control of overall dimming. Avoids cropping the bg visually on
+          tall portrait viewports. */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%)',
+            'radial-gradient(ellipse 130% 100% at center, transparent 75%, rgba(0,0,0,0.18) 100%)',
         }}
       />
 

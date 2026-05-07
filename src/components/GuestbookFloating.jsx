@@ -55,7 +55,10 @@ export default function GuestbookFloating({ slug, accent }) {
   if (!slug) return null;
 
   return (
-    <div className="pointer-events-auto fixed bottom-12 right-5 z-30 flex flex-col items-end gap-2">
+    <div
+      className="pointer-events-auto fixed right-4 z-30 flex flex-col items-end gap-2 md:right-5"
+      style={{ bottom: 'max(5.5rem, calc(env(safe-area-inset-bottom) + 5.5rem))' }}
+    >
       <div
         className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-3 py-1.5 text-[11px] font-semibold text-white/80 backdrop-blur-xl"
         title="Followers"

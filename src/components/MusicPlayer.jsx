@@ -419,6 +419,83 @@ export default function MusicPlayer({ music, accent, hideControls, readyToPlay =
 
 function ControlPill({ playing, needsGesture, volume, onVolumeChange, onToggle, kind, accent }) {
   const accentIsLight = isLightColor(accent);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  );
+  const [volOpen, setVolOpen] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 767px)');
+    const handler = (e) => setIsMobile(e.matches);
+    setIsMobile(mql.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  const hasVolume = kind === 'audio' || kind === 'youtube';
+
+  if (isMobile) {
+    return (
+      <div
+        className="pointer-events-auto fixed right-3 z-40 flex items-center gap-2"
+        style={{ top: 'max(0.75rem, calc(env(safe-area-inset-top) + 0.75rem))' }}
+      >
+        {needsGesture && !playing ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-ink-800/90 px-3.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur-xl shadow-xl active:scale-95"
+          >
+            <span
+              className="flex h-4 w-4 items-center justify-center rounded-full bg-white"
+              style={{ color: accentIsLight ? '#111111' : accent }}
+            >
+              <PlayIcon />
+            </span>
+            Play
+          </button>
+        ) : (
+          <div className="flex items-center gap-0.5 rounded-full border border-white/10 bg-ink-800/85 p-0.5 backdrop-blur-xl shadow-xl">
+            <button
+              type="button"
+              onClick={onToggle}
+              className={`flex h-7 w-7 items-center justify-center rounded-full transition active:scale-90 ${
+                playing ? 'bg-white' : 'bg-white/10 text-white'
+              }`}
+              style={playing ? { color: accentIsLight ? '#111111' : accent } : {}}
+              aria-label={playing ? 'Pause' : 'Play'}
+            >
+              {playing ? <PauseIcon /> : <PlayIcon />}
+            </button>
+            {hasVolume && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setVolOpen((v) => !v)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-white/70 hover:text-white"
+                  aria-label="Volume"
+                  aria-expanded={volOpen}
+                >
+                  <VolumeIcon muted={volume < 0.02} />
+                </button>
+                {volOpen && (
+                  <div className="absolute right-0 top-full mt-2 rounded-2xl border border-white/10 bg-ink-800/95 px-3 py-2.5 shadow-2xl backdrop-blur-xl">
+                    <CustomSlider
+                      value={volume}
+                      onChange={onVolumeChange}
+                      vertical={false}
+                      color={accentIsLight ? '#111111' : accent}
+                      length={120}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="pointer-events-auto fixed top-5 right-5 z-40 flex flex-col items-end gap-3">
@@ -439,7 +516,7 @@ function ControlPill({ playing, needsGesture, volume, onVolumeChange, onToggle, 
       )}
 
       {(!needsGesture || playing) && (
-        <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-ink-800/80 p-2.5 backdrop-blur-2xl shadow-2xl transition-all duration-500">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-ink-800/80 p-3 backdrop-blur-2xl shadow-2xl transition-all duration-500">
           <button
             type="button"
             onClick={onToggle}
@@ -452,28 +529,95 @@ function ControlPill({ playing, needsGesture, volume, onVolumeChange, onToggle, 
             {playing ? <PauseIcon /> : <PlayIcon />}
           </button>
 
-          {(kind === 'audio' || kind === 'youtube') && (
-            <div className="relative flex h-32 w-10 items-center justify-center py-2">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={volume}
-                onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                className="absolute h-1 w-24 cursor-pointer appearance-none bg-white/10 -rotate-90"
-                style={{
-                  width: '100px',
-                  borderRadius: '2px',
-                  accentColor: accentIsLight ? '#111111' : accent,
-                }}
-                aria-label="Volume"
-              />
-            </div>
+          {hasVolume && (
+            <CustomSlider
+              value={volume}
+              onChange={onVolumeChange}
+              vertical
+              color={accentIsLight ? '#111111' : accent}
+              length={110}
+            />
           )}
         </div>
       )}
     </div>
+  );
+}
+
+function CustomSlider({ value, onChange, vertical = false, color = '#5865F2', length = 100 }) {
+  const trackRef = useRef(null);
+
+  const setFromEvent = (clientX, clientY) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    let pct;
+    if (vertical) {
+      pct = 1 - (clientY - rect.top) / rect.height;
+    } else {
+      pct = (clientX - rect.left) / rect.width;
+    }
+    onChange(Math.max(0, Math.min(1, pct)));
+  };
+
+  const onPointerDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setFromEvent(e.clientX, e.clientY);
+  };
+
+  const onPointerMove = (e) => {
+    if (e.buttons !== 1) return;
+    setFromEvent(e.clientX, e.clientY);
+  };
+
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  const trackSize = vertical
+    ? { width: 4, height: length }
+    : { width: length, height: 4 };
+  const fillStyle = vertical
+    ? { left: 0, right: 0, bottom: 0, height: `${pct}%`, background: color }
+    : { top: 0, bottom: 0, left: 0, width: `${pct}%`, background: color };
+  const thumbStyle = vertical
+    ? { left: '50%', bottom: `${pct}%`, transform: 'translate(-50%, 50%)', background: color }
+    : { top: '50%', left: `${pct}%`, transform: 'translate(-50%, -50%)', background: color };
+
+  return (
+    <div
+      ref={trackRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      role="slider"
+      aria-valuemin={0}
+      aria-valuemax={1}
+      aria-valuenow={value}
+      aria-label="Volume"
+      tabIndex={0}
+      className="relative cursor-pointer touch-none rounded-full bg-white/15"
+      style={{ ...trackSize }}
+    >
+      <span className="absolute rounded-full" style={fillStyle} />
+      <span
+        className="absolute h-3 w-3 rounded-full shadow-md ring-2 ring-white/90"
+        style={thumbStyle}
+      />
+    </div>
+  );
+}
+
+function VolumeIcon({ muted }) {
+  if (muted) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3 10v4h4l5 5V5L7 10H3zm13.59 2L19 9.41 17.59 8 15 10.59 12.41 8 11 9.41 13.59 12 11 14.59 12.41 16 15 13.41 17.59 16 19 14.59 16.59 12z" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 10v4h4l5 5V5L7 10H3zm11.5 2a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z" />
+    </svg>
   );
 }
 
