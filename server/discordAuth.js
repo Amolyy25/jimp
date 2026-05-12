@@ -61,7 +61,6 @@ export function registerDiscordAuthRoutes(app, prisma, authenticate, helpers) {
       scope: SCOPES,
       redirect_uri: redirectUri,
       state,
-      prompt: 'none',
     });
     res.redirect(`${AUTH_BASE}/authorize?${params.toString()}`);
   });

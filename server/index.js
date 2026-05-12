@@ -128,6 +128,19 @@ app.disable('x-powered-by');
 /* Middleware                                                                 */
 /* -------------------------------------------------------------------------- */
 
+// Canonical host: 301-redirect www.persn.me → persn.me so Google does not
+// index both variants as duplicate pages.
+if (IS_PROD) {
+  app.use((req, res, next) => {
+    const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+    if (host.toLowerCase().startsWith('www.')) {
+      const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      return res.redirect(301, `${proto}://${host.slice(4)}${req.originalUrl}`);
+    }
+    next();
+  });
+}
+
 // Security headers — applied to every response (API + SPA shell).
 app.use(securityHeaders);
 
@@ -899,6 +912,9 @@ if (IS_PROD) {
     // should not compete with the homepage in search.
     app.get(/^(?!\/api\/|\/assets\/).*/, async (req, res) => {
       try {
+        if (req.path === '/') {
+          return res.sendFile(indexPath);
+        }
         const match = req.path.match(/^\/([a-z0-9][a-z0-9-]{1,29})$/i);
         if (match) {
           const slug = match[1].toLowerCase();
@@ -914,12 +930,15 @@ if (IS_PROD) {
           res.set('Content-Type', 'text/html; charset=utf-8');
           return res.send(injectRouteMeta(indexHtml, routeMeta));
         }
+        // Unknown URL. Serve the SPA shell so React can render its
+        // redirect, but return 404 status so crawlers stop indexing dead
+        // URLs (fixes "Soft 404" reports in Search Console).
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        return res.status(404).send(indexHtml);
       } catch (err) {
-        // Fall through to unmodified shell — never block the SPA on meta
-        // injection errors.
         console.warn('[meta] injection failed:', err.message);
+        res.sendFile(indexPath);
       }
-      res.sendFile(indexPath);
     });
   } else {
     console.warn(
@@ -1116,6 +1135,18 @@ function routeSeoMeta(pathname, req) {
     '/verify-email': {
       title: 'Verify email — persn.me',
       description: 'Verify your persn.me account email.',
+      robots: 'noindex,nofollow',
+      canonical: url,
+    },
+    '/forgot': {
+      title: 'Forgot password — persn.me',
+      description: 'Reset your persn.me account password.',
+      robots: 'noindex,nofollow',
+      canonical: url,
+    },
+    '/reset-password': {
+      title: 'Reset password — persn.me',
+      description: 'Reset your persn.me account password.',
       robots: 'noindex,nofollow',
       canonical: url,
     },
